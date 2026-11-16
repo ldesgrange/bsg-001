@@ -39,6 +39,7 @@ If you cannot satisfy the oath, surface the disagreement instead of changing the
   Keep inferred and hypothetical protocol findings as prose until they can be verified by an executable oath.
   Varar oaths run against fake Bluetooth devices by default.
   `mise run specs-e2e` runs every oath against the fakes and needs no hardware, so it can run in CI.
+  CI runs the tasks of `mise run check` one by one, then `mise run audit` and `mise run secrets`, on every push, whatever the branch.
   `mise run specs-e2e-real` is an explicit hardware opt-in: it runs the oaths a real BSG-001 nearby can reproduce, using the real Bluetooth adapters.
   Bindings must skip the examples a real device cannot reproduce, and an example that changes a real device must put its state back afterwards.
 
@@ -47,6 +48,9 @@ If you cannot satisfy the oath, surface the disagreement instead of changing the
 - Do not override the three-day release cooldown of mise or Cargo, or install/update dependencies published within the previous three days unless the user explicitly authorizes it.
 - Keep `mise.lock` and `Cargo.lock` committed and current when their respective tools or dependencies change.
   If adding a third-party pre-commit plugin, pin it to an immutable revision.
+- Pin every GitHub Action in `.github/workflows/` to a commit, with its release as a comment, and apply the same three-day cooldown to new releases.
+- Dependabot proposes updates of the crates and of the GitHub Actions, with the same cooldown.
+  It cannot read `mise.toml`, so the tools pinned there are updated by hand.
 - Commit `varar.lock.json` with intentional oath changes.
   Never accept drift with `VARAR_UPDATE=1` without reviewing the behavioral change.
 
