@@ -16,6 +16,10 @@ gh = "latest"
 opencode = "latest"
 claude-code = "latest"
 
+[hooks]
+# `mise install` also downloads the crates of Cargo.lock, so the first build needs no network.
+postinstall = "cargo fetch --locked"
+
 [tasks.format-check]
 description = "Check formatting without modifying files"
 hide = true

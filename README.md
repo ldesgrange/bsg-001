@@ -9,7 +9,7 @@ mise install
 mise run check
 ```
 
-`mise install` provisions the Rust toolchain and the other tools, and registers the pre-commit and pre-push hooks.
+`mise install` provisions the Rust toolchain and the other tools, downloads the crates, and registers the pre-commit and pre-push hooks.
 
 The tool is written in Rust and executes the oaths in `specs/` with Varar.
 

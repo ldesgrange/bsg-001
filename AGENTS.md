@@ -30,7 +30,7 @@ If you cannot satisfy the oath, surface the disagreement instead of changing the
 - The tool is written in Rust, and the crate is at the repository root.
   `mise.toml` provisions the Rust toolchain.
 - Use `mise run <task>` for repository operations.
-  Run `mise install` after cloning; it also registers the pre-commit and pre-push hooks.
+  Run `mise install` after cloning; it also downloads the crates and registers the pre-commit and pre-push hooks.
   Run the applicable quality tasks before completing a change.
 - Run focused tests with `cargo test --locked --test cli` (replace the test name as needed).
 - Keep `Cargo.lock` synchronized through `cargo`, and build with `--locked`.
