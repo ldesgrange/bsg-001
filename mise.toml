@@ -45,6 +45,12 @@ run = "cargo test --locked"
 description = "Run every executable specification against fake Bluetooth devices"
 run = "cargo test --locked --test oaths"
 
+[tasks.specs-report]
+description = "Write the specifications, with the results of the last `mise run specs-e2e`, as a site in target/specs-report"
+# It does not run the examples: as a dependency, a failing run would stop it, and the report is most useful when an example fails.
+env = { BSG001_SPECS_REPORT = "target/specs-report" }
+run = "cargo test --locked --test oaths"
+
 [tasks.specs-e2e-real]
 description = "Run the executable specifications a real BSG-001 nearby can reproduce; renames it and puts its name back"
 env = { BSG001_E2E_REAL = "1" }

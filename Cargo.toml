@@ -29,6 +29,8 @@ libdbus-sys = { version = "~0.2", features = ["vendored"] }
 
 [dev-dependencies]
 libtest-mimic = "~0.8"
+pulldown-cmark = "~0.13.6"
+serde_json = "~1.0"
 syn = { version = "~3", features = ["full", "visit"] }
 varar = "~0.8"
 varar-cargotest = "~0.8"

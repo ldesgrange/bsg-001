@@ -7,7 +7,7 @@
 
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -30,12 +30,14 @@ use bsg_001::{Clock, DeviceConnector, DeviceInfo, DeviceScanner, discover_device
 use clap::{CommandFactory, Parser};
 #[path = "support/fakes.rs"]
 mod fakes;
+#[path = "support/report.rs"]
+mod report;
 
 use fakes::{FakeConnector, FakeDevice, FakeScanner, FixedClock};
 use libtest_mimic::{Arguments, Completion, Failed, Trial};
 use tokio::runtime::Runtime;
-use varar::{HandlerError, Registry, Steps};
-use varar_core::reference::build_workspace;
+use varar::{HandlerError, IntoSensor, Registry, Steps};
+use varar_core::reference::{OathWorkspace, build_workspace};
 use varar_runner::{example_names, find_oaths, plan_oath};
 
 const PROMPT: &str = "$ ";
@@ -54,6 +56,15 @@ type Row = BTreeMap<String, String>;
 thread_local! {
     /// Why the example running on this thread was skipped, when it was.
     static SKIPPED: RefCell<Option<String>> = const { RefCell::new(None) };
+    /// The expressions of the steps that run the command, which make an example end-to-end.
+    static E2E_STEPS: RefCell<BTreeSet<String>> = const { RefCell::new(BTreeSet::new()) };
+}
+
+/// Register a sensor that runs the command, so that the examples using it are reported as end-to-end.
+#[track_caller]
+fn e2e_sensor<Args>(steps: &mut Steps<World>, expression: &str, handler: impl IntoSensor<World, Args>) {
+    E2E_STEPS.with_borrow_mut(|e2e| e2e.insert(expression.to_owned()));
+    steps.sensor(expression, handler);
 }
 
 /// The fake Bluetooth surroundings an example describes.
@@ -440,7 +451,7 @@ fn tool_steps(steps: &mut Steps<World>) {
         Ok(world.needing_fake("A packet lost during the download"))
     });
 
-    steps.sensor("Here is the terminal session:", |world: World, expected: String| {
+    e2e_sensor(steps, "Here is the terminal session:", |world: World, expected: String| {
         let command = expected.lines().next().unwrap_or_default();
         let arguments = command
             .strip_prefix(PROMPT)
@@ -516,7 +527,8 @@ fn tool_steps(steps: &mut Steps<World>) {
         let sensor = row["battery sensor"].parse().map_err(|_| HandlerError::new("A battery sensor value is a number."))?;
         Ok(row_with("percentage", BatteryLevel::from_sensor(sensor).to_string()))
     });
-    steps.sensor(
+    e2e_sensor(
+        steps,
         "The tool checks each name and gives its verdict before writing anything to the device.",
         |_world: World, row: Row| {
             let device = FakeDevice::storing(ADDRESS);
@@ -538,7 +550,8 @@ fn tool_steps(steps: &mut Steps<World>) {
             Ok(row_with("verdict", verdict))
         },
     );
-    steps.sensor(
+    e2e_sensor(
+        steps,
         "When the device keeps the stored name shown, renaming it to ABCD fails with the error shown.",
         |_world: World, row: Row| {
             let world = World {
@@ -733,10 +746,8 @@ fn context(_oath_file: &str) -> Rc<dyn Any> {
     Rc::new(World::default())
 }
 
-/// One trial per example, like `varar_cargotest`, except that an example can skip itself while it runs.
-///
-/// Drift is left alone: the run against the fakes reconciles `varar.lock.json`.
-fn hardware_trials(root: &Path) -> Vec<Trial> {
+/// Every oath, by its path from the repository root, with its source, and the workspace that resolves the references between them.
+fn load_oaths(root: &Path) -> (Vec<(String, String)>, OathWorkspace) {
     let config = varar_config::read_config(root).unwrap_or_else(|error| panic!("{error}"));
     let oaths: Vec<(String, String)> = find_oaths(&config, root)
         .iter()
@@ -746,7 +757,26 @@ fn hardware_trials(root: &Path) -> Vec<Trial> {
         })
         .collect();
     let documents: Vec<_> = oaths.iter().map(|(path, source)| varar_core::parse::parse(path, source)).collect();
-    let workspace = Arc::new(build_workspace(&documents));
+    let workspace = build_workspace(&documents);
+    (oaths, workspace)
+}
+
+/// Render the oaths, with the results of the last run, as a site in `out`.
+fn specs_report(root: &Path, out: &Path) {
+    let (oaths, workspace) = load_oaths(root);
+    let registry = build_registry();
+    let e2e = E2E_STEPS.take();
+    report::render_site(root, out, &oaths, &registry, &workspace, |step| e2e.contains(&step.expression))
+        .unwrap_or_else(|error| panic!("the report could not be written to {}: {error}", out.display()));
+    println!("The report is in {}", out.join("index.html").display());
+}
+
+/// One trial per example, like `varar_cargotest`, except that an example can skip itself while it runs.
+///
+/// Drift is left alone: the run against the fakes reconciles `varar.lock.json`.
+fn hardware_trials(root: &Path) -> Vec<Trial> {
+    let (oaths, workspace) = load_oaths(root);
+    let workspace = Arc::new(workspace);
     let registry = build_registry();
     let mut trials = Vec::new();
     for (path, source) in oaths {
@@ -769,6 +799,9 @@ fn hardware_trials(root: &Path) -> Vec<Trial> {
 
 fn main() {
     let repository_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    if let Some(out) = std::env::var_os("BSG001_SPECS_REPORT") {
+        return specs_report(repository_root, Path::new(&out));
+    }
     if hardware() {
         libtest_mimic::run(&Arguments::from_args(), hardware_trials(repository_root)).exit();
     }

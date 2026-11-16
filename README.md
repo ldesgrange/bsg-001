@@ -48,6 +48,11 @@ Its terminal sessions and tables of cases are executable examples, run against f
 `mise run specs-e2e` runs every oath in `specs/` against fake Bluetooth devices.
 It needs no hardware.
 
+After `mise run specs-e2e`, `mise run specs-report` writes the manual with the results of that run as a site in `target/specs-report/`.
+Each example is framed in green when it passed and in red when it failed, and hovering a failed value shows the actual one.
+The sentences of an example are coloured by its kind: e2e when it runs the `bsg-001` command, core when it checks the code directly.
+A step binding is e2e when it is registered with `e2e_sensor` in `tests/oaths.rs`.
+
 To run the oaths against a real BSG-001 nearby, with the real Bluetooth adapters:
 
 ```bash
