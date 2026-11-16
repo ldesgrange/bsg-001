@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      # The checks need Rust, cargo-audit and gitleaks only.
+      # The checks need Rust, cargo-audit, gitleaks, actionlint and shellcheck only.
       # Without this, the first `mise run` would install every other tool of mise.toml.
       MISE_DISABLE_TOOLS: pre-commit,opencode,claude-code
     steps:
@@ -43,6 +43,9 @@ jobs:
 
       - name: Lint
         run: mise run lint
+
+      - name: Lint the workflows
+        run: mise run lint-actions
 
       - name: Check the layer boundaries
         run: mise run architecture
