@@ -210,7 +210,7 @@
       ]
     },
     "specs/reading.md": {
-      "sourceHash": "fnv1a:34930974",
+      "sourceHash": "fnv1a:5a9e1c87",
       "examples": [
         {
           "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this reading:",
@@ -222,19 +222,19 @@
         },
         {
           "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this reading:",
-          "line": 67
+          "line": 71
         },
         {
           "name": "Here is the terminal session:",
-          "line": 73
+          "line": 77
         },
         {
           "name": "For each battery sensor value, the tool shows the percentage in this table",
-          "line": 89
+          "line": 93
         },
         {
           "name": "A device at address \"AA:BB:CC:DD:EE:FF\" answers the reading query with a reply that is too short. Here is the terminal session:",
-          "line": 116
+          "line": 120
         }
       ]
     },

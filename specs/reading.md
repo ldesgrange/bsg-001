@@ -28,7 +28,10 @@ Battery: 40%
 ## What each line means
 
 - **Status** is `measuring` or `stopped`.
-- **Measuring time** is how long the current run has lasted, in days, hours, minutes and seconds.
+- **Measuring time** is the device's own count of how long it has been measuring, in days, hours, minutes and seconds.
+  Starting a run restarts its hours, minutes and seconds, but not its days, which the device clears only when it loses power.
+  So the days can include whole days of earlier runs: one day into a run that follows a ten-day run, the device reports 11 days.
+  [`bsg-001 logging`](logging.md) shows when the run really started.
 - **Average dose rate** is the average over the last ten completed minutes, and is the value the vendor application displays.
   It covers ten minutes whatever the record interval of the run.
 - **One-minute dose rate** is the rate over the last completed minute, followed by the number of pulses the sensor counted in that minute.
@@ -63,6 +66,7 @@ The dose rates it reports are those it held when it stopped, and they do not cha
 Showing them would pass old values off as current ones.
 
 The tool shows how long the last run lasted instead of a measuring time.
+Its days are the device's count too, so they can include whole days of earlier runs.
 
 A device at address "AA:BB:CC:DD:EE:FF" reports this reading:
 
