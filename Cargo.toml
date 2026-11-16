@@ -28,7 +28,7 @@ libdbus-sys = { version = "~0.2", features = ["vendored"] }
 
 [dev-dependencies]
 libtest-mimic = "~0.8"
-syn = { version = "~2", features = ["full", "visit"] }
+syn = { version = "~3", features = ["full", "visit"] }
 varar = "~0.8"
 varar-cargotest = "~0.8"
 varar-config = "~0.8"

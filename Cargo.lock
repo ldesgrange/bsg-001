@@ -125,7 +125,7 @@ dependencies = [
  "futures-util",
  "libdbus-sys",
  "libtest-mimic",
- "syn 2.0.119",
+ "syn 3.0.9",
  "tokio",
  "varar",
  "varar-cargotest",
