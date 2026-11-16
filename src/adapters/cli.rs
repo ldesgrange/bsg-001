@@ -85,6 +85,8 @@ impl Cli {
     /// Take from the environment what the command line left out.
     #[must_use]
     pub fn with_environment(mut self, variable: impl Fn(&str) -> Option<String>) -> Self {
+        // A variable that is set but empty counts as not set.
+        let variable = |name: &str| variable(name).filter(|value| !value.is_empty());
         match &mut self.command {
             Command::Discover { .. } => {}
             Command::Logging { address } | Command::Read { address } | Command::SetName { address, .. } | Command::Start { address, .. } | Command::Stop { address } => {
@@ -180,6 +182,16 @@ pub enum Printed {
 pub struct Outcome {
     pub stdout: String,
     pub success: bool,
+}
+
+/// Write a result to standard output.
+///
+/// A program that stopped reading early, as `head` does, has closed the pipe: what is left is dropped, which is not an error.
+pub fn write_result(stdout: &mut impl std::io::Write, result: &str) -> std::io::Result<()> {
+    match stdout.write_all(result.as_bytes()).and_then(|()| stdout.flush()) {
+        Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        written => written,
+    }
 }
 
 /// Run a parsed command against the supplied ports.

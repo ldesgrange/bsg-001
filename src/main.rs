@@ -4,7 +4,7 @@ use std::io::IsTerminal;
 use std::process::ExitCode;
 
 use bsg_001::adapters::bluetooth::BtleplugDeviceScanner;
-use bsg_001::adapters::cli::{Cli, NoProgress, TerminalProgress, run};
+use bsg_001::adapters::cli::{Cli, NoProgress, TerminalProgress, run, write_result};
 use bsg_001::adapters::device_bluetooth::BluetoothConnector;
 use bsg_001::adapters::system_clock::SystemClock;
 use clap::Parser;
@@ -19,6 +19,9 @@ async fn main() -> ExitCode {
     } else {
         run(cli, &scanner, &BluetoothConnector, &SystemClock, &mut stderr, &mut NoProgress).await
     };
-    print!("{}", outcome.stdout);
+    if let Err(error) = write_result(&mut std::io::stdout().lock(), &outcome.stdout) {
+        eprintln!("Error: {error}");
+        return ExitCode::FAILURE;
+    }
     if outcome.success { ExitCode::SUCCESS } else { ExitCode::FAILURE }
 }

@@ -15,7 +15,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use bsg_001::adapters::bluetooth::{BtleplugDeviceScanner, device_info_from_advertisement};
-use bsg_001::adapters::cli::{Cli, NoProgress, escape_name, format_pulses, run};
+use bsg_001::adapters::cli::{Cli, NoProgress, escape_name, format_pulses, run, write_result};
 use bsg_001::adapters::device_bluetooth::BluetoothConnector;
 use bsg_001::adapters::system_clock::SystemClock;
 use bsg_001::application::logging::logging_state;
@@ -99,6 +99,19 @@ struct Session {
 enum Attempt {
     Ran(Session),
     NotRun(String),
+}
+
+/// Stands in for standard output once the program reading it has stopped.
+struct ClosedPipe;
+
+impl std::io::Write for ClosedPipe {
+    fn write(&mut self, _bytes: &[u8]) -> std::io::Result<usize> {
+        Err(std::io::ErrorKind::BrokenPipe.into())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Err(std::io::ErrorKind::BrokenPipe.into())
+    }
 }
 
 fn block_on<T>(future: impl Future<Output = T>) -> T {
@@ -417,6 +430,14 @@ fn tool_steps(steps: &mut Steps<World>) {
         world.device = world.device.map(FakeDevice::sending_wrong_records);
         Ok(world.needing_fake("Records that do not match the checksum"))
     });
+    steps.stimulus("While the tool downloads the records for the first time, the last packet is lost.", |mut world: World| {
+        world.device = world.device.map(|device| device.losing_the_last_packet_of(1));
+        Ok(world.needing_fake("A packet lost during the download"))
+    });
+    steps.stimulus("The last packet of every download is lost.", |mut world: World| {
+        world.device = world.device.map(|device| device.losing_the_last_packet_of(usize::MAX));
+        Ok(world.needing_fake("A packet lost during the download"))
+    });
 
     steps.sensor("Here is the terminal session:", |world: World, expected: String| {
         let command = expected.lines().next().unwrap_or_default();
@@ -462,6 +483,9 @@ fn tool_steps(steps: &mut Steps<World>) {
         let session = world.last_session.borrow().clone().expect("the example shows a terminal session first");
         assert_eq!(session.stdout, "", "standard output is empty");
         Ok(())
+    });
+    steps.sensor("A result written to a program that has stopped reading is dropped without an error.", |_world: World| {
+        write_result(&mut ClosedPipe, "a result\n").map_err(|error| HandlerError::new(error.to_string()))
     });
     steps.sensor("Nothing but queries is written to the device.", |world: World| {
         if hardware() {

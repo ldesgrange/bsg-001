@@ -93,6 +93,8 @@ pub struct FakeDevice {
     /// The dose rate of a record that the device writes when it is first asked for its records.
     writes_during_download: Option<u16>,
     sends_wrong_records: bool,
+    /// How many of the next downloads lose their last packet.
+    lossy_downloads: usize,
     ignores_start_and_stop: bool,
     /// The time the device's clock was last set to, which stamps the start of the next run.
     clock: Option<[u8; 6]>,
@@ -115,6 +117,7 @@ impl FakeDevice {
             records: Vec::new(),
             writes_during_download: None,
             sends_wrong_records: false,
+            lossy_downloads: 0,
             ignores_start_and_stop: false,
             clock: None,
             packets: VecDeque::new(),
@@ -241,6 +244,12 @@ impl FakeDevice {
         self
     }
 
+    /// Lose the last packet of this many downloads, starting with the next one.
+    pub fn losing_the_last_packet_of(mut self, downloads: usize) -> Self {
+        self.lossy_downloads = downloads;
+        self
+    }
+
     fn holding(mut self, records: Vec<u16>) -> Self {
         self.records = records;
         self.report_records();
@@ -293,6 +302,10 @@ impl DeviceTransport for FakeDevice {
                 bytes[0] = bytes[0].wrapping_add(1);
             }
             self.packets.extend(bytes.chunks(REPLY_LENGTH).map(<[u8]>::to_vec));
+            if self.lossy_downloads > 0 {
+                self.lossy_downloads -= 1;
+                self.packets.pop_back();
+            }
         }
         Ok(())
     }

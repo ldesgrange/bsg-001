@@ -248,6 +248,33 @@ Error: The format must be text or csv, not xml.
 </details>
 
 <details>
+<summary>A format variable that is empty</summary>
+
+A variable that is set but empty counts as not set, so the format is `text`.
+
+A device at address "AA:BB:CC:DD:EE:FF" reports this logging state:
+
+| logging duration | run started | record interval | records |
+| --- | --- | --- | --- |
+| 10 days | 2026-01-02 03:04:05 | 10 minutes | 2 |
+
+The device holds these records:
+
+| dose rate |
+| --- |
+| 4.35 |
+| 0.05 |
+
+Here is the terminal session:
+
+```console
+$ BSG_001_FORMAT= bsg-001 records --address AA:BB:CC:DD:EE:FF
+2026-01-02 03:24:05 UTC	0.05 µSv/h
+```
+
+</details>
+
+<details>
 <summary>A device whose clock was not set</summary>
 
 Without a start time the tool cannot tell when a record was written.
@@ -379,6 +406,60 @@ Here is the terminal session:
 ```console
 $ bsg-001 records --address AA:BB:CC:DD:EE:FF
 Error: The records do not match the checksum of the device.
+```
+
+</details>
+
+<details>
+<summary>Records lost during the download</summary>
+
+The device sends its records in packets, and a packet can be lost on the way.
+The tool waits for the missing records, then asks again and downloads again, as it does for records that do not match the checksum.
+
+A device at address "AA:BB:CC:DD:EE:FF" reports this logging state:
+
+| logging duration | run started | record interval | records |
+| --- | --- | --- | --- |
+| 10 days | 2026-01-02 03:04:05 | 10 minutes | 3 |
+
+The device holds these records:
+
+| dose rate |
+| --- |
+| 4.35 |
+| 0.05 |
+| 0.10 |
+
+While the tool downloads the records for the first time, the last packet is lost.
+Here is the terminal session:
+
+```console
+$ bsg-001 records --address AA:BB:CC:DD:EE:FF
+2026-01-02 03:24:05 UTC	0.05 µSv/h
+2026-01-02 03:34:05 UTC	0.10 µSv/h
+```
+
+After three downloads that lose records, the tool reports the failure.
+
+A device at address "AA:BB:CC:DD:EE:FF" reports this logging state:
+
+| logging duration | run started | record interval | records |
+| --- | --- | --- | --- |
+| 10 days | 2026-01-02 03:04:05 | 10 minutes | 2 |
+
+The device holds these records:
+
+| dose rate |
+| --- |
+| 0.05 |
+| 0.10 |
+
+The last packet of every download is lost.
+Here is the terminal session:
+
+```console
+$ bsg-001 records --address AA:BB:CC:DD:EE:FF
+Error: Timed out waiting for the records.
 ```
 
 </details>

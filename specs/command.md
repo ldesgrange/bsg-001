@@ -69,11 +69,26 @@ $ bsg-001 read
 Error: No device address was given: pass --address or set BSG_001_ADDRESS.
 ```
 
+A variable that is set but empty counts as not set.
+
+A device at address "AA:BB:CC:DD:EE:FF" stores the name it is sent.
+Here is the terminal session:
+
+```console
+$ BSG_001_ADDRESS= bsg-001 read
+Error: No device address was given: pass --address or set BSG_001_ADDRESS.
+```
+
 ## What the tool prints
 
 Results are printed on standard output.
 Warnings and errors are printed on standard error.
 So is a message that says there is no result, such as `No records.`, so that a file or a program receiving the output gets results and nothing else.
 A command that fails prints a line beginning with `Error:`, prints no result, and exits with a non-zero status.
+
+The program receiving the output may stop reading before the end, as `head` does in `bsg-001 records | head -1`.
+The tool then ends quietly.
+
+A result written to a program that has stopped reading is dropped without an error.
 
 The terminal sessions in this manual show the command after a `$` prompt, followed by both streams as a terminal would display them.

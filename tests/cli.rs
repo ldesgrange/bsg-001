@@ -3,7 +3,7 @@ mod fakes;
 
 use std::time::Duration;
 
-use bsg_001::adapters::cli::{Cli, Command, NoProgress, Printed, format_device, format_progress, render_discovery, run};
+use bsg_001::adapters::cli::{Cli, Command, NoProgress, Printed, format_device, format_progress, render_discovery, run, write_result};
 use bsg_001::{DeviceAddress, DeviceInfo, DeviceName, Rssi};
 use clap::Parser;
 use fakes::{FakeConnector, FakeDevice, FakeScanner, FixedClock};
@@ -107,6 +107,29 @@ fn rejects_invalid_name_before_reaching_the_device() {
     assert!(!outcome.success);
     assert_eq!(outcome.stdout, "");
     assert_eq!(String::from_utf8(stderr).unwrap(), "Error: The name must contain exactly four ASCII letters or digits.\n");
+}
+
+/// Stands in for standard output when writing to it fails.
+struct Failing(std::io::ErrorKind);
+
+impl std::io::Write for Failing {
+    fn write(&mut self, _bytes: &[u8]) -> std::io::Result<usize> {
+        Err(self.0.into())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn drops_a_result_the_reader_no_longer_wants_but_reports_other_write_failures() {
+    assert!(write_result(&mut Failing(std::io::ErrorKind::BrokenPipe), "a result\n").is_ok());
+    assert!(write_result(&mut Failing(std::io::ErrorKind::StorageFull), "a result\n").is_err());
+
+    let mut written = Vec::new();
+    write_result(&mut written, "a result\n").unwrap();
+    assert_eq!(written, b"a result\n");
 }
 
 #[test]

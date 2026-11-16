@@ -2,7 +2,7 @@
   "version": 2,
   "oaths": {
     "specs/command.md": {
-      "sourceHash": "fnv1a:65cbb542",
+      "sourceHash": "fnv1a:582e12d2",
       "examples": [
         {
           "name": "Asking for help does not contact a device. Running `bsg-001 --help` lists the commands \"discover, logging, read, records, set-name, start, stop\"",
@@ -23,6 +23,14 @@
         {
           "name": "A device at address \"AA:BB:CC:DD:EE:FF\" stores the name it is sent. Here is the terminal session:",
           "line": 64
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" stores the name it is sent. Here is the terminal session:",
+          "line": 74
+        },
+        {
+          "name": "A result written to a program that has stopped reading is dropped without an error",
+          "line": 92
         }
       ]
     },
@@ -207,7 +215,7 @@
       ]
     },
     "specs/records.md": {
-      "sourceHash": "fnv1a:688ec151",
+      "sourceHash": "fnv1a:a291e4ae",
       "examples": [
         {
           "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
@@ -307,59 +315,95 @@
         },
         {
           "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
-          "line": 256
+          "line": 255
         },
         {
           "name": "The device holds these records:",
-          "line": 262
+          "line": 261
         },
         {
           "name": "Here is the terminal session:",
-          "line": 270
+          "line": 268
         },
         {
           "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
-          "line": 285
+          "line": 283
         },
         {
           "name": "The device holds these records:",
-          "line": 291
+          "line": 289
         },
         {
           "name": "Here is the terminal session:",
-          "line": 300
+          "line": 297
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 312
+        },
+        {
+          "name": "The device holds these records:",
+          "line": 318
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 327
         },
         {
           "name": "Given when the run started and its record interval, each record was recorded at the time shown. Record 1 is the first record, the one the tool leaves out",
-          "line": 309
+          "line": 336
         },
         {
           "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
-          "line": 331
+          "line": 358
         },
         {
           "name": "The device holds these records:",
-          "line": 337
+          "line": 364
         },
         {
           "name": "While the tool downloads the records for the first time, the device writes a record of \"0.20\". Here is the terminal session:",
-          "line": 345
+          "line": 372
         },
         {
           "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
-          "line": 363
+          "line": 390
         },
         {
           "name": "The device holds these records:",
-          "line": 369
+          "line": 396
         },
         {
           "name": "The device sends records that never match its checksum. Here is the terminal session:",
-          "line": 376
+          "line": 403
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 419
+        },
+        {
+          "name": "The device holds these records:",
+          "line": 425
+        },
+        {
+          "name": "While the tool downloads the records for the first time, the last packet is lost. Here is the terminal session:",
+          "line": 433
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 444
+        },
+        {
+          "name": "The device holds these records:",
+          "line": 450
+        },
+        {
+          "name": "The last packet of every download is lost. Here is the terminal session:",
+          "line": 457
         },
         {
           "name": "A device at address \"AA:BB:CC:DD:EE:FF\" answers the logging state query with a reply that is too short. Here is the terminal session:",
-          "line": 389
+          "line": 470
         }
       ]
     },

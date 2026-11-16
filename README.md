@@ -31,13 +31,13 @@ cargo run -- discover
 Read what a device is measuring right now, using the address that discovery printed:
 
 ```bash
-cargo run -- read AA:BB:CC:DD:EE:FF
+cargo run -- read --address AA:BB:CC:DD:EE:FF
 ```
 
 Show how a device is set up to record its measurements, and how many records it holds:
 
 ```bash
-cargo run -- logging AA:BB:CC:DD:EE:FF
+cargo run -- logging --address AA:BB:CC:DD:EE:FF
 ```
 
 ## Device manual and executable specifications
