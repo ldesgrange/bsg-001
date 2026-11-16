@@ -20,7 +20,7 @@ jobs:
     env:
       # The checks need Rust, cargo-audit, gitleaks, jactionlint and shellcheck only.
       # Without this, the first `mise run` would install every other tool of mise.toml.
-      MISE_DISABLE_TOOLS: pre-commit,opencode,claude-code
+      MISE_DISABLE_TOOLS: pre-commit,gh,opencode,claude-code
     steps:
       # Actions are pinned to a commit, with the release it belongs to as a comment.
       - name: Check out the repository
