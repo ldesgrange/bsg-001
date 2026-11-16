@@ -209,21 +209,31 @@ pub async fn run(
         Command::Discover { scan_duration } => render_discovery(scanner, scan_duration).await.map_err(|error| error.to_string()),
         Command::Logging { address } => match given(address) {
             Err(error) => Err(error),
-            Ok(address) => logging(connector, &address).await.map(|state| Printed::Result(format_logging_state(&state))),
+            Ok(address) => with_device(connector, &address, async |device| logging_state(device).await)
+                .await
+                .map(|state| Printed::Result(format_logging_state(&state))),
         },
         Command::Read { address } => match given(address) {
             Err(error) => Err(error),
-            Ok(address) => measure(connector, &address).await.map(|reading| Printed::Result(format_reading(&reading))),
+            Ok(address) => with_device(connector, &address, async |device| read(device).await)
+                .await
+                .map(|reading| Printed::Result(format_reading(&reading))),
         },
         Command::Records { address, format } => match (given(address), RecordsFormat::chosen(format.as_deref())) {
             (Err(error), _) | (_, Err(error)) => Err(error),
-            (Ok(address), Ok(format)) => download(connector, &address, progress).await.map(|run| format_records(&run, format)),
+            (Ok(address), Ok(format)) => with_device(connector, &address, async |device| {
+                let result = records(device, &mut |done, total| progress.show(done, total)).await;
+                progress.clear();
+                result
+            })
+            .await
+            .map(|run| format_records(&run, format)),
         },
         Command::SetName { address, name } => match (given(address), validate_name(&name)) {
             (Err(error), _) | (_, Err(error)) => Err(error),
             (Ok(address), Ok(())) => {
                 let _ = writeln!(stderr, "Warning: renaming during logging may reset the measuring-time counter.");
-                rename(connector, &address, &name)
+                with_device(connector, &address, async |device| set_name(device, &name).await)
                     .await
                     .map(|confirmed| Printed::Result(format!("Confirmed name: {confirmed}. Power-cycle the device to update its advertised name.")))
             }
@@ -232,14 +242,21 @@ pub async fn run(
             let duration = if no_logging { Some(LoggingDuration::OFF) } else { LoggingDuration::of_run(days) };
             match (given(address), duration.ok_or_else(|| "A run lasts from 1 to 31 days.".to_owned())) {
                 (Err(error), _) | (_, Err(error)) => Err(error),
-                (Ok(address), Ok(duration)) => begin(connector, &address, duration, clock, stderr)
-                    .await
-                    .map(|state| Printed::Result(format_started(&state))),
+                (Ok(address), Ok(duration)) => {
+                    let mut warn = |warning: String| {
+                        let _ = writeln!(stderr, "Warning: {warning}");
+                    };
+                    with_device(connector, &address, async |device| start(device, duration, clock, &mut warn).await)
+                        .await
+                        .map(|state| Printed::Result(format_started(&state)))
+                }
             }
         }
         Command::Stop { address } => match given(address) {
             Err(error) => Err(error),
-            Ok(address) => end(connector, &address).await.map(|()| Printed::Result("Stopped measuring.".to_owned())),
+            Ok(address) => with_device(connector, &address, async |device| stop(device).await)
+                .await
+                .map(|()| Printed::Result("Stopped measuring.".to_owned())),
         },
     };
     match result {
@@ -271,43 +288,10 @@ fn after_disconnecting<T>(result: Result<T, String>, disconnected: Result<(), St
     Ok(value)
 }
 
-async fn logging(connector: &impl DeviceConnector, address: &str) -> Result<LoggingState, String> {
+/// Connect to the device, run an operation over the connection, and disconnect whatever the outcome.
+async fn with_device<C: DeviceConnector, T>(connector: &C, address: &str, operation: impl AsyncFnOnce(&mut C::Transport) -> Result<T, String>) -> Result<T, String> {
     let mut device = connector.connect(address).await?;
-    let result = logging_state(&mut device).await;
-    after_disconnecting(result, device.disconnect().await)
-}
-
-async fn measure(connector: &impl DeviceConnector, address: &str) -> Result<Reading, String> {
-    let mut device = connector.connect(address).await?;
-    let result = read(&mut device).await;
-    after_disconnecting(result, device.disconnect().await)
-}
-
-async fn download(connector: &impl DeviceConnector, address: &str, progress: &mut impl Progress) -> Result<Run, String> {
-    let mut device = connector.connect(address).await?;
-    let result = records(&mut device, &mut |done, total| progress.show(done, total)).await;
-    progress.clear();
-    after_disconnecting(result, device.disconnect().await)
-}
-
-async fn begin(connector: &impl DeviceConnector, address: &str, duration: LoggingDuration, clock: &impl Clock, stderr: &mut impl std::io::Write) -> Result<LoggingState, String> {
-    let mut device = connector.connect(address).await?;
-    let mut warn = |warning: String| {
-        let _ = writeln!(stderr, "Warning: {warning}");
-    };
-    let result = start(&mut device, duration, clock, &mut warn).await;
-    after_disconnecting(result, device.disconnect().await)
-}
-
-async fn end(connector: &impl DeviceConnector, address: &str) -> Result<(), String> {
-    let mut device = connector.connect(address).await?;
-    let result = stop(&mut device).await;
-    after_disconnecting(result, device.disconnect().await)
-}
-
-async fn rename(connector: &impl DeviceConnector, address: &str, name: &str) -> Result<String, String> {
-    let mut device = connector.connect(address).await?;
-    let result = set_name(&mut device, name).await;
+    let result = operation(&mut device).await;
     after_disconnecting(result, device.disconnect().await)
 }
 
