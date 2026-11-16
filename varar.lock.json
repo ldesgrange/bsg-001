@@ -35,7 +35,7 @@
       ]
     },
     "specs/discovery.md": {
-      "sourceHash": "fnv1a:dd787ef4",
+      "sourceHash": "fnv1a:9ca5ebc6",
       "examples": [
         {
           "name": "These Bluetooth devices are advertising nearby:",
@@ -86,8 +86,12 @@
           "line": 134
         },
         {
+          "name": "Whether a device is seen depends on whether it was remembered and on what is reported during the scan",
+          "line": 152
+        },
+        {
           "name": "The tool checks each timeout and gives its verdict before scanning",
-          "line": 148
+          "line": 170
         }
       ]
     },

@@ -141,6 +141,28 @@ AA:BB:CC:DD:EE:01	BLE_Gamma:\nA\x7fB	-55 dBm
 </details>
 
 <details>
+<summary>A device the computer remembers from an earlier scan</summary>
+
+The computer can remember the devices it has seen before, and report them as found at the start of every scan.
+A remembered device may be switched off or out of range, so being found is not enough to list it.
+It counts as seen only once an advertisement from it arrives during the scan.
+A device the computer did not remember is seen as soon as it is found.
+The same rule applies when a command looks for the device at its address before connecting.
+
+Whether a device is seen depends on whether it was remembered and on what is reported during the scan.
+
+| remembered | reported during the scan | seen |
+| --- | --- | --- |
+| yes | found | no |
+| yes | found, advertisement | yes |
+| yes | advertisement | yes |
+| no | found | yes |
+| no | advertisement | yes |
+| no | nothing | no |
+
+</details>
+
+<details>
 <summary>Scan durations</summary>
 
 The scan duration is a finite number of seconds, at least 0.1.

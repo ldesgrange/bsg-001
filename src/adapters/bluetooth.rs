@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
+use std::hash::Hash;
 use std::time::Duration;
 
 use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral as _, PeripheralProperties, ScanFilter};
@@ -46,6 +47,39 @@ pub(crate) async fn first_adapter() -> Result<Adapter, ScannerError> {
     Ok(manager.adapters().await?.into_iter().next().ok_or(NoBluetoothAdapter)?)
 }
 
+/// What the Bluetooth stack reports about a peripheral during a scan.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Report {
+    /// The stack lists the peripheral, which on Linux it also does for one it remembers from an earlier scan.
+    Found,
+    /// An advertisement of the peripheral arrived.
+    Advertisement,
+}
+
+/// Tells the peripherals that advertise during a scan from those the Bluetooth stack only remembers.
+pub struct LiveSightings<Id> {
+    remembered: HashSet<Id>,
+    seen: HashSet<Id>,
+}
+
+impl<Id: Clone + Eq + Hash> LiveSightings<Id> {
+    /// Start a scan, given the peripherals the stack knew before it.
+    pub fn remembering(remembered: impl IntoIterator<Item = Id>) -> Self {
+        Self {
+            remembered: remembered.into_iter().collect(),
+            seen: HashSet::new(),
+        }
+    }
+
+    /// Take a report, and say whether it is the first to show that the peripheral is advertising.
+    ///
+    /// A remembered peripheral may be switched off, so only an advertisement shows that it is there.
+    pub fn report(&mut self, id: &Id, report: Report) -> bool {
+        let advertising = report == Report::Advertisement || !self.remembered.contains(id);
+        advertising && self.seen.insert(id.clone())
+    }
+}
+
 /// A peripheral that advertised during a scan, with the properties it had while the scan was running.
 pub(crate) struct Sighting {
     pub peripheral: Peripheral,
@@ -55,10 +89,12 @@ pub(crate) struct Sighting {
 /// Scan for up to `duration` and return only the peripherals that advertised during the scan.
 /// The scan ends early once `stop_when` accepts a peripheral.
 pub(crate) async fn scan(adapter: &Adapter, duration: Duration, mut stop_when: impl FnMut(&Peripheral) -> bool) -> Result<Vec<Sighting>, ScannerError> {
+    // On Linux the events begin with every peripheral the stack remembers, whether or not it is still there.
+    let remembered = adapter.peripherals().await?.iter().map(Peripheral::id).collect::<Vec<_>>();
+    let mut sightings = LiveSightings::remembering(remembered);
     let mut events = adapter.events().await?;
     adapter.start_scan(ScanFilter::default()).await?;
 
-    let mut seen = HashSet::new();
     let mut peripherals = Vec::new();
     let collected = async {
         let deadline = tokio::time::sleep(duration);
@@ -67,8 +103,17 @@ pub(crate) async fn scan(adapter: &Adapter, duration: Duration, mut stop_when: i
             tokio::select! {
                 () = &mut deadline => break,
                 event = events.next() => match event {
-                    Some(CentralEvent::DeviceDiscovered(id) | CentralEvent::DeviceUpdated(id)) => {
-                        if !seen.insert(id.clone()) {
+                    Some(event) => {
+                        let (id, report) = match event {
+                            CentralEvent::DeviceDiscovered(id) => (id, Report::Found),
+                            CentralEvent::DeviceUpdated(id)
+                            | CentralEvent::RssiUpdate { id, .. }
+                            | CentralEvent::ManufacturerDataAdvertisement { id, .. }
+                            | CentralEvent::ServiceDataAdvertisement { id, .. } => (id, Report::Advertisement),
+                            // The advertised services are reported for remembered peripherals too, so they show nothing.
+                            _ => continue,
+                        };
+                        if !sightings.report(&id, report) {
                             continue;
                         }
                         // A device can leave range between the event and this lookup; it is then left out.
@@ -81,7 +126,6 @@ pub(crate) async fn scan(adapter: &Adapter, duration: Duration, mut stop_when: i
                             break;
                         }
                     }
-                    Some(_) => {}
                     None => break,
                 },
             }

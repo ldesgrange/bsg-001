@@ -1,4 +1,4 @@
-use bsg_001::adapters::bluetooth::device_info_from_advertisement;
+use bsg_001::adapters::bluetooth::{LiveSightings, Report, device_info_from_advertisement};
 
 #[test]
 fn maps_advertisement_properties_to_device_information() {
@@ -24,4 +24,15 @@ fn treats_an_invalid_name_and_rssi_as_missing() {
     assert_eq!(device.address.to_string(), "randomized-address");
     assert!(device.name.is_none());
     assert!(device.rssi.is_none());
+}
+
+#[test]
+fn sees_a_remembered_device_only_once_it_advertises_and_each_device_once() {
+    let mut sightings = LiveSightings::remembering(["remembered"]);
+
+    assert!(!sightings.report(&"remembered", Report::Found));
+    assert!(sightings.report(&"remembered", Report::Advertisement));
+    assert!(!sightings.report(&"remembered", Report::Advertisement));
+    assert!(sightings.report(&"new", Report::Found));
+    assert!(!sightings.report(&"new", Report::Advertisement));
 }

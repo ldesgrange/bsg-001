@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use bsg_001::adapters::bluetooth::{BtleplugDeviceScanner, device_info_from_advertisement};
+use bsg_001::adapters::bluetooth::{BtleplugDeviceScanner, LiveSightings, Report, device_info_from_advertisement};
 use bsg_001::adapters::cli::{Cli, NoProgress, escape_name, format_pulses, run, write_result};
 use bsg_001::adapters::device_bluetooth::BluetoothConnector;
 use bsg_001::adapters::system_clock::SystemClock;
@@ -553,6 +553,24 @@ fn tool_steps(steps: &mut Steps<World>) {
             assert!(session.stdout.is_empty(), "a failed command printed {}", session.stdout);
             let error = session.stderr.lines().next_back().unwrap_or_default();
             Ok(row_with("error", error.strip_prefix("Error: ").unwrap_or(error)))
+        },
+    );
+    steps.sensor(
+        "Whether a device is seen depends on whether it was remembered and on what is reported during the scan.",
+        |_world: World, row: Row| {
+            let device = "a device";
+            let remembered = if row["remembered"] == "yes" { vec![device] } else { Vec::new() };
+            let mut sightings = LiveSightings::remembering(remembered);
+            let mut seen = false;
+            for reported in row["reported during the scan"].split(", ") {
+                seen |= match reported {
+                    "found" => sightings.report(&device, Report::Found),
+                    "advertisement" => sightings.report(&device, Report::Advertisement),
+                    "nothing" => false,
+                    other => return Err(HandlerError::new(format!("A scan does not report {other}."))),
+                };
+            }
+            Ok(row_with("seen", if seen { "yes" } else { "no" }))
         },
     );
     steps.sensor("The tool checks each timeout and gives its verdict before scanning.", |_world: World, row: Row| {
