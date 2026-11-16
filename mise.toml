@@ -4,7 +4,7 @@ lockfile = true
 minimum_release_age = "3d" # Supply-chain cooldown: ignore tool releases published in the last 3 days (raises mise’s built-in 24h default).
 
 [tools]
-rust = "1.100.0"
+rust = { version = "1.100.0", components = "clippy,rustfmt" } # The components the format and lint tasks need.
 "cargo:cargo-audit" = "0.22.2"
 
 gitleaks = "latest"

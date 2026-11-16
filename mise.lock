@@ -154,3 +154,6 @@ url_api = "https://api.github.com/repos/pre-commit/pre-commit/releases/assets/63
 version = "1.100.0"
 backend = "core:rust"
 specifiers = ["1.100.0"]
+
+[tools.rust.options]
+components = "clippy,rustfmt"

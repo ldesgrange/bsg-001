@@ -17,6 +17,10 @@ jobs:
     name: Checks and executable specifications
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # The checks need Rust, cargo-audit and gitleaks only.
+      # Without this, the first `mise run` would install every other tool of mise.toml.
+      MISE_DISABLE_TOOLS: pre-commit,opencode,claude-code
     steps:
       # Actions are pinned to a commit, with the release it belongs to as a comment.
       - name: Check out the repository
@@ -24,12 +28,11 @@ jobs:
         with:
           persist-credentials: false
 
-      # Only the tools the checks need are installed, at the versions mise.lock records.
+      # The tools are installed at the versions mise.lock records.
       - name: Install the toolchain with mise
         uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         with:
           minimum_release_age: 3d
-          install_args: rust cargo:cargo-audit gitleaks
 
       - name: Cache the Cargo build
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
