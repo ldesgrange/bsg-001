@@ -1,0 +1,9 @@
+{
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true
+  },
+  "outputStyle": "Concise",
+  "permissions": {
+    "defaultMode": "plan"
+  }
+}

@@ -1,0 +1,59 @@
+[settings]
+experimental = true # So hooks are run.
+lockfile = true
+minimum_release_age = "3d" # Supply-chain cooldown: ignore tool releases published in the last 3 days (raises mise’s built-in 24h default).
+
+[tools]
+rust = "1.100.0"
+"cargo:cargo-audit" = "0.22.2"
+
+gitleaks = "latest"
+pre-commit = { version = "latest", postinstall = "pre-commit install --install-hooks --hook-type pre-commit --hook-type pre-push" }
+
+opencode = "latest"
+claude-code = "latest"
+
+[tasks.format-check]
+description = "Check formatting without modifying files"
+hide = true
+run = "cargo fmt --check"
+
+[tasks.format]
+description = "Format source files"
+run = "cargo fmt"
+
+[tasks.lint]
+description = "Run lint checks"
+run = "cargo clippy --locked --all-targets -- -D warnings"
+
+[tasks.architecture]
+description = "Check layer boundaries"
+run = "cargo test --locked --test architecture"
+
+[tasks.tests]
+description = "Run every test that does not require Bluetooth hardware, executable specifications included"
+run = "cargo test --locked"
+
+[tasks.specs-e2e]
+description = "Run every executable specification against fake Bluetooth devices"
+run = "cargo test --locked --test oaths"
+
+[tasks.specs-e2e-real]
+description = "Run the executable specifications a real BSG-001 nearby can reproduce; renames it and puts its name back"
+env = { BSG001_E2E_REAL = "1" }
+run = [
+    "cargo test --locked --test discovery_hardware -- --ignored",
+    "cargo test --locked --test oaths -- --test-threads=1",
+]
+
+[tasks.audit]
+description = "Audit locked dependencies for known vulnerabilities"
+run = "cargo audit"
+
+[tasks.secrets]
+description = "Scan the working tree for secrets"
+run = "gitleaks dir . --redact --no-banner"
+
+[tasks.check]
+description = "Run formatting, lint, architecture checks and tests"
+run = ["mise run format-check", "mise run lint", "mise run architecture", "mise run tests"]

@@ -1,0 +1,465 @@
+{
+  "version": 2,
+  "oaths": {
+    "specs/command.md": {
+      "sourceHash": "fnv1a:65cbb542",
+      "examples": [
+        {
+          "name": "Asking for help does not contact a device. Running `bsg-001 --help` lists the commands \"discover, logging, read, records, set-name, start, stop\"",
+          "line": 8
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" stores the name it is sent. Here is the terminal session:",
+          "line": 21
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" stores the name it is sent. Here is the terminal session:",
+          "line": 36
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" stores the name it is sent. Here is the terminal session:",
+          "line": 50
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" stores the name it is sent. Here is the terminal session:",
+          "line": 64
+        }
+      ]
+    },
+    "specs/discovery.md": {
+      "sourceHash": "fnv1a:dd787ef4",
+      "examples": [
+        {
+          "name": "These Bluetooth devices are advertising nearby:",
+          "line": 11
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 17
+        },
+        {
+          "name": "No Bluetooth device is advertising nearby. Here is the terminal session:",
+          "line": 30
+        },
+        {
+          "name": "Nothing is printed on standard output",
+          "line": 38
+        },
+        {
+          "name": "These Bluetooth devices are advertising nearby:",
+          "line": 46
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 52
+        },
+        {
+          "name": "These Bluetooth devices are advertising nearby:",
+          "line": 67
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 79
+        },
+        {
+          "name": "These Bluetooth devices are advertising nearby:",
+          "line": 102
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 110
+        },
+        {
+          "name": "These Bluetooth devices are advertising nearby:",
+          "line": 128
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 134
+        },
+        {
+          "name": "The tool checks each timeout and gives its verdict before scanning",
+          "line": 148
+        }
+      ]
+    },
+    "specs/index.md": {
+      "sourceHash": "fnv1a:0cb6c2f6",
+      "examples": []
+    },
+    "specs/logging.md": {
+      "sourceHash": "fnv1a:da4f6407",
+      "examples": [
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 11
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 17
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 51
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 57
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 72
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 78
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 93
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 99
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" answers the logging state query with a reply that is too short. Here is the terminal session:",
+          "line": 116
+        }
+      ]
+    },
+    "specs/protocol.md": {
+      "sourceHash": "fnv1a:c967d76c",
+      "examples": [
+        {
+          "name": "The tool builds the frame for an opcode and a payload as shown",
+          "line": 33
+        },
+        {
+          "name": "The tool takes the content of the reply to a query as shown. The last column says why",
+          "line": 59
+        },
+        {
+          "name": "The tool turns text into bytes as shown",
+          "line": 74
+        },
+        {
+          "name": "The tool reads text from the start of some content as shown",
+          "line": 84
+        },
+        {
+          "name": "The tool reads the number held in two bytes as shown",
+          "line": 101
+        },
+        {
+          "name": "Each operation of the tool writes the frames shown, in order. It is 2026-01-02 03:04:05 in UTC when they run",
+          "line": 111
+        },
+        {
+          "name": "The tool sends each time as the payload shown",
+          "line": 136
+        },
+        {
+          "name": "From each reply to the reading query, the tool reads the status, measuring time, average dose rate, last-minute dose rate¹ and battery sensor value shown",
+          "line": 166
+        },
+        {
+          "name": "From each reply to the logging state query, the tool reads the logging duration, run started, record interval, records and checksum shown",
+          "line": 203
+        },
+        {
+          "name": "Given the number of records, the tool reads from the packets the records shown",
+          "line": 224
+        },
+        {
+          "name": "The tool works out the checksum of the records shown",
+          "line": 238
+        }
+      ]
+    },
+    "specs/reading.md": {
+      "sourceHash": "fnv1a:34930974",
+      "examples": [
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this reading:",
+          "line": 11
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 17
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this reading:",
+          "line": 67
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 73
+        },
+        {
+          "name": "For each battery sensor value, the tool shows the percentage in this table",
+          "line": 89
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" answers the reading query with a reply that is too short. Here is the terminal session:",
+          "line": 116
+        }
+      ]
+    },
+    "specs/records.md": {
+      "sourceHash": "fnv1a:688ec151",
+      "examples": [
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 11
+        },
+        {
+          "name": "The device holds these records:",
+          "line": 17
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 26
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 55
+        },
+        {
+          "name": "The device holds these records:",
+          "line": 61
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 70
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 87
+        },
+        {
+          "name": "The device holds these records:",
+          "line": 93
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 100
+        },
+        {
+          "name": "While it downloads the number of records shown, the tool reports the progress shown",
+          "line": 117
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 138
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 144
+        },
+        {
+          "name": "Nothing is printed on standard output",
+          "line": 151
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 160
+        },
+        {
+          "name": "The device holds these records:",
+          "line": 166
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 172
+        },
+        {
+          "name": "Nothing is printed on standard output",
+          "line": 179
+        },
+        {
+          "name": "Of the records the device holds, the tool keeps those shown",
+          "line": 181
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 197
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 203
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 212
+        },
+        {
+          "name": "The device holds these records:",
+          "line": 218
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 226
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" stores the name it is sent. Here is the terminal session:",
+          "line": 240
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 256
+        },
+        {
+          "name": "The device holds these records:",
+          "line": 262
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 270
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 285
+        },
+        {
+          "name": "The device holds these records:",
+          "line": 291
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 300
+        },
+        {
+          "name": "Given when the run started and its record interval, each record was recorded at the time shown. Record 1 is the first record, the one the tool leaves out",
+          "line": 309
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 331
+        },
+        {
+          "name": "The device holds these records:",
+          "line": 337
+        },
+        {
+          "name": "While the tool downloads the records for the first time, the device writes a record of \"0.20\". Here is the terminal session:",
+          "line": 345
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" reports this logging state:",
+          "line": 363
+        },
+        {
+          "name": "The device holds these records:",
+          "line": 369
+        },
+        {
+          "name": "The device sends records that never match its checksum. Here is the terminal session:",
+          "line": 376
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" answers the logging state query with a reply that is too short. Here is the terminal session:",
+          "line": 389
+        }
+      ]
+    },
+    "specs/run.md": {
+      "sourceHash": "fnv1a:7cb529b6",
+      "examples": [
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" is stopped. It is \"2026-01-02 03:04:05\" in UTC. Here is the terminal session:",
+          "line": 11
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" is stopped. It is \"2026-01-02 03:04:05\" in UTC. Here is the terminal session:",
+          "line": 23
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" is stopped. It is \"2026-01-02 03:04:05\" in UTC. The connection to the device is made at \"2026-01-02 03:04:20\" in UTC. Here is the terminal session:",
+          "line": 45
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" is measuring. Here is the terminal session:",
+          "line": 65
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" is stopped. The device holds these records:",
+          "line": 81
+        },
+        {
+          "name": "It is \"2026-01-02 03:04:05\" in UTC. Here is the terminal session:",
+          "line": 90
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" is stopped. It is \"2026-01-02 03:04:05\" in UTC. Here is the terminal session:",
+          "line": 104
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" is measuring. Here is the terminal session:",
+          "line": 125
+        },
+        {
+          "name": "Nothing but queries is written to the device",
+          "line": 133
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" is stopped. Here is the terminal session:",
+          "line": 135
+        },
+        {
+          "name": "Nothing but queries is written to the device",
+          "line": 143
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" is stopped. Here is the terminal session:",
+          "line": 152
+        },
+        {
+          "name": "Nothing is written to the device",
+          "line": 160
+        },
+        {
+          "name": "For each number of days, a run records at the record interval shown",
+          "line": 162
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" is stopped. The device does not start or stop when told to. Here is the terminal session:",
+          "line": 180
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" is measuring. The device does not start or stop when told to. Here is the terminal session:",
+          "line": 189
+        }
+      ]
+    },
+    "specs/set-name.md": {
+      "sourceHash": "fnv1a:52666019",
+      "examples": [
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" stores the name it is sent. Here is the terminal session:",
+          "line": 11
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" stores the name it is sent. Here is the terminal session:",
+          "line": 30
+        },
+        {
+          "name": "Nothing is written to the device",
+          "line": 38
+        },
+        {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" keeps the name \"WXYZ\" whatever it is sent. Here is the terminal session:",
+          "line": 44
+        },
+        {
+          "name": "The tool checks each name and gives its verdict before writing anything to the device",
+          "line": 60
+        },
+        {
+          "name": "When the device keeps the stored name shown, renaming it to ABCD fails with the error shown",
+          "line": 82
+        }
+      ]
+    }
+  }
+}

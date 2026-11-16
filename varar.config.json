@@ -1,0 +1,8 @@
+{
+  "$schema": "https://varar.dev/varar.config.schema.json",
+  "docs": {
+    "include": ["specs/**/*.md"],
+    "exclude": []
+  },
+  "steps": ["tests/oaths.rs"]
+}
