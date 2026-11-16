@@ -15,7 +15,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use bsg_001::adapters::bluetooth::{BtleplugDeviceScanner, LiveSightings, Report, device_info_from_advertisement};
-use bsg_001::adapters::cli::{Cli, NoProgress, escape_name, format_pulses, run, write_result};
+use bsg_001::adapters::cli::{Cli, Command, NoProgress, escape_name, format_pulses, run, write_result};
 use bsg_001::adapters::device_bluetooth::BluetoothConnector;
 use bsg_001::adapters::system_clock::SystemClock;
 use bsg_001::application::logging::logging_state;
@@ -152,7 +152,7 @@ fn real_device() -> Result<&'static (String, String), HandlerError> {
     if let Some(device) = DEVICE.get() {
         return Ok(device);
     }
-    let devices = block_on(discover_devices(&BtleplugDeviceScanner::new(), Duration::from_secs(10))).map_err(|error| HandlerError::new(error.to_string()))?;
+    let devices = block_on(discover_devices(&BtleplugDeviceScanner::new(), Duration::from_secs(20))).map_err(|error| HandlerError::new(error.to_string()))?;
     let device = devices.first().ok_or_else(|| HandlerError::new("No BSG-001 was discovered nearby."))?;
     Ok(DEVICE.get_or_init(|| (device.address.to_string(), device.name.as_ref().map(ToString::to_string).unwrap_or_default())))
 }
@@ -573,6 +573,13 @@ fn tool_steps(steps: &mut Steps<World>) {
             Ok(row_with("seen", if seen { "yes" } else { "no" }))
         },
     );
+    steps.sensor("Without `--timeout`, the scan lasts {string} seconds.", |_world: World, _expected: String| {
+        let cli = Cli::try_parse_from([COMMAND, "discover"]).map_err(|error| HandlerError::new(error.to_string()))?;
+        let Command::Discover { scan_duration } = cli.command else {
+            return Err(HandlerError::new("discover was not read as the discover command."));
+        };
+        Ok(scan_duration.as_secs_f64().to_string())
+    });
     steps.sensor("The tool checks each timeout and gives its verdict before scanning.", |_world: World, row: Row| {
         let accepted = Cli::try_parse_from(["bsg-001", "discover", &format!("--timeout={}", row["timeout"])]).is_ok();
         Ok(row_with("verdict", if accepted { "valid" } else { "invalid" }))

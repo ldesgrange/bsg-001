@@ -8,7 +8,7 @@ use tokio::runtime::Runtime;
 fn discovers_a_bsg_001_with_real_bluetooth() {
     let devices = Runtime::new()
         .expect("the test runtime starts")
-        .block_on(discover_devices(&BtleplugDeviceScanner::new(), Duration::from_secs(5)))
+        .block_on(discover_devices(&BtleplugDeviceScanner::new(), Duration::from_secs(20)))
         .expect("the Bluetooth scan succeeds");
     assert!(!devices.is_empty(), "No BSG-001 was discovered.");
 }

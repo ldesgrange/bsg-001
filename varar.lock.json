@@ -35,7 +35,7 @@
       ]
     },
     "specs/discovery.md": {
-      "sourceHash": "fnv1a:9ca5ebc6",
+      "sourceHash": "fnv1a:16d7ef05",
       "examples": [
         {
           "name": "These Bluetooth devices are advertising nearby:",
@@ -54,44 +54,48 @@
           "line": 38
         },
         {
-          "name": "These Bluetooth devices are advertising nearby:",
-          "line": 46
-        },
-        {
-          "name": "Here is the terminal session:",
-          "line": 52
+          "name": "Without `--timeout`, the scan lasts \"20\" seconds",
+          "line": 47
         },
         {
           "name": "These Bluetooth devices are advertising nearby:",
-          "line": 67
+          "line": 49
         },
         {
           "name": "Here is the terminal session:",
-          "line": 79
+          "line": 55
         },
         {
           "name": "These Bluetooth devices are advertising nearby:",
-          "line": 102
+          "line": 70
         },
         {
           "name": "Here is the terminal session:",
-          "line": 110
+          "line": 82
         },
         {
           "name": "These Bluetooth devices are advertising nearby:",
-          "line": 128
+          "line": 105
         },
         {
           "name": "Here is the terminal session:",
-          "line": 134
+          "line": 113
+        },
+        {
+          "name": "These Bluetooth devices are advertising nearby:",
+          "line": 131
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 137
         },
         {
           "name": "Whether a device is seen depends on whether it was remembered and on what is reported during the scan",
-          "line": 152
+          "line": 155
         },
         {
           "name": "The tool checks each timeout and gives its verdict before scanning",
-          "line": 170
+          "line": 173
         }
       ]
     },

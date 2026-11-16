@@ -27,7 +27,7 @@ pub struct Cli {
 pub enum Command {
     /// List nearby Bluetooth devices without connecting to them.
     Discover {
-        #[arg(long = "timeout", default_value = "5.0", value_parser = parse_scan_duration)]
+        #[arg(long = "timeout", default_value = "20.0", value_parser = parse_scan_duration)]
         scan_duration: Duration,
     },
     /// Show how the device at the given address is set up to record, and how many records it holds.

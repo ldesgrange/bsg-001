@@ -43,14 +43,14 @@ fn reports_when_no_bsg_001_devices_are_found() {
 }
 
 #[test]
-fn defaults_the_discover_timeout_to_five_seconds() {
+fn defaults_the_discover_timeout_to_twenty_seconds() {
     let cli = Cli::try_parse_from(["bsg-001", "discover"]).unwrap();
 
     assert!(matches!(
         cli.command,
         Command::Discover {
             scan_duration
-        } if scan_duration == Duration::from_secs(5)
+        } if scan_duration == Duration::from_secs(20)
     ));
 }
 

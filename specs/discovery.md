@@ -41,7 +41,10 @@ A BSG-001 that is connected to another client stops advertising, so it cannot be
 
 ## Scanning for longer
 
-The scan lasts 5 seconds unless `--timeout` gives another duration in seconds.
+A BSG-001 advertises seldom: several seconds can pass before it is heard, and sometimes more than fifteen.
+So the scan lasts 20 seconds unless `--timeout` gives another duration in seconds.
+
+Without `--timeout`, the scan lasts "20" seconds.
 
 These Bluetooth devices are advertising nearby:
 
