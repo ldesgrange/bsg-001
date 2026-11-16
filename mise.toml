@@ -12,6 +12,7 @@ actionlint = "latest"
 shellcheck = "latest" # actionlint uses it to check the scripts of the workflows.
 pre-commit = { version = "latest", postinstall = "pre-commit install --install-hooks --hook-type pre-commit --hook-type pre-push" }
 
+gh = "latest"
 opencode = "latest"
 claude-code = "latest"
 
