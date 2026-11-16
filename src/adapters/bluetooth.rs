@@ -153,8 +153,11 @@ impl DeviceScanner for BtleplugDeviceScanner {
         let mut devices = Vec::new();
         for sighting in scan(&adapter, scan_duration, |_| false).await? {
             // A device without properties left range after it advertised; it is left out.
-            if let Some(properties) = sighting.properties {
-                devices.push(device_info_from_advertisement(properties.address.to_string(), properties.local_name, properties.rssi)?);
+            // A device without an address that can select it is left out too: macOS gives every device an address of zeros.
+            if let Some(properties) = sighting.properties
+                && let Ok(device) = device_info_from_advertisement(properties.address.to_string(), properties.local_name, properties.rssi)
+            {
+                devices.push(device);
             }
         }
         Ok(devices)

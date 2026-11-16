@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::adapters::bluetooth::{first_adapter, scan};
 use crate::application::{DeviceConnector, DeviceTransport};
+use crate::domain::DeviceAddress;
 
 const SERVICE: Uuid = Uuid::from_u128(0x0000_1523_1212_efde_1523_785f_eabc_d123);
 const COMMAND: Uuid = Uuid::from_u128(0x0000_1524_1212_efde_1523_785f_eabc_d123);
@@ -149,8 +150,8 @@ pub struct BluetoothConnector;
 impl DeviceConnector for BluetoothConnector {
     type Transport = BluetoothTransport;
 
-    async fn connect(&self, address: &str) -> Result<BluetoothTransport, String> {
-        let peripheral = connect_peripheral(address).await?;
+    async fn connect(&self, address: &DeviceAddress) -> Result<BluetoothTransport, String> {
+        let peripheral = connect_peripheral(&address.to_string()).await?;
         match open(&peripheral).await {
             Ok(transport) => Ok(transport),
             Err(error) => {

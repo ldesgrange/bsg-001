@@ -144,6 +144,28 @@ AA:BB:CC:DD:EE:01	BLE_Gamma:\nA\x7fB	-55 dBm
 </details>
 
 <details>
+<summary>A device without an address</summary>
+
+macOS does not tell the tool the address of a device: every device has an address made only of zeros there.
+Such an address cannot select a device, so the device is left out.
+
+These Bluetooth devices are advertising nearby:
+
+| address | name | RSSI |
+| --- | --- | --- |
+| 00:00:00:00:00:00 | BLE_Gamma:1234 | -55 |
+| AA:BB:CC:DD:EE:02 | BLE_Gamma:5678 | -60 |
+
+Here is the terminal session:
+
+```console
+$ bsg-001 discover
+AA:BB:CC:DD:EE:02	BLE_Gamma:5678	-60 dBm
+```
+
+</details>
+
+<details>
 <summary>A device the computer remembers from an earlier scan</summary>
 
 The computer can remember the devices it has seen before, and report them as found at the start of every scan.

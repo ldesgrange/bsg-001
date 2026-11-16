@@ -327,10 +327,11 @@ fn tool_steps(steps: &mut Steps<World>) {
         world.nearby = table
             .iter()
             .skip(1)
-            .map(|row| {
+            .filter_map(|row| {
                 let name = (!row[1].is_empty()).then(|| from_control_pictures(&row[1]));
                 let rssi = (!row[2].is_empty()).then(|| row[2].parse().expect("the oath RSSI is a number"));
-                device_info_from_advertisement(&row[0], name, rssi).expect("the oath address is valid")
+                // As the real scanner does, leave out a device whose address cannot select it.
+                device_info_from_advertisement(&row[0], name, rssi).ok()
             })
             .collect();
         Ok(world)

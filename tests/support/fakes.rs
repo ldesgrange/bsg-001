@@ -7,7 +7,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use bsg_001::domain::logging::ClockTime;
-use bsg_001::{Clock, DeviceConnector, DeviceInfo, DeviceScanner, DeviceTransport};
+use bsg_001::{Clock, DeviceAddress, DeviceConnector, DeviceInfo, DeviceScanner, DeviceTransport};
 
 const REPLY_LENGTH: usize = 20;
 const SET_NAME: u8 = 0x30;
@@ -355,12 +355,12 @@ pub struct FakeConnector {
 impl DeviceConnector for FakeConnector {
     type Transport = FakeDevice;
 
-    async fn connect(&self, address: &str) -> Result<FakeDevice, String> {
+    async fn connect(&self, address: &DeviceAddress) -> Result<FakeDevice, String> {
         if let Some((clock, time)) = &self.connected_at {
             clock.show(*time);
         }
         match &self.device {
-            Some(device) if device.address == address => Ok(device.clone()),
+            Some(device) if device.address == address.to_string() => Ok(device.clone()),
             _ => Err(format!("Device {address} was not found.")),
         }
     }

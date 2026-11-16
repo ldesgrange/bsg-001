@@ -2,7 +2,7 @@
   "version": 2,
   "oaths": {
     "specs/command.md": {
-      "sourceHash": "fnv1a:582e12d2",
+      "sourceHash": "fnv1a:f5b8f26d",
       "examples": [
         {
           "name": "Asking for help does not contact a device. Running `bsg-001 --help` lists the commands \"discover, logging, read, records, set-name, start, stop\"",
@@ -29,13 +29,21 @@
           "line": 74
         },
         {
+          "name": "A device at address \"AA:BB:CC:DD:EE:FF\" stores the name it is sent. Here is the terminal session:",
+          "line": 85
+        },
+        {
+          "name": "Nothing is written to the device",
+          "line": 93
+        },
+        {
           "name": "A result written to a program that has stopped reading is dropped without an error",
-          "line": 92
+          "line": 108
         }
       ]
     },
     "specs/discovery.md": {
-      "sourceHash": "fnv1a:16d7ef05",
+      "sourceHash": "fnv1a:2292174e",
       "examples": [
         {
           "name": "These Bluetooth devices are advertising nearby:",
@@ -90,12 +98,20 @@
           "line": 137
         },
         {
+          "name": "These Bluetooth devices are advertising nearby:",
+          "line": 152
+        },
+        {
+          "name": "Here is the terminal session:",
+          "line": 159
+        },
+        {
           "name": "Whether a device is seen depends on whether it was remembered and on what is reported during the scan",
-          "line": 155
+          "line": 177
         },
         {
           "name": "The tool checks each timeout and gives its verdict before scanning",
-          "line": 173
+          "line": 195
         }
       ]
     },

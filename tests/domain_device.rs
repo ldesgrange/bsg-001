@@ -1,8 +1,20 @@
-use bsg_001::{DeviceAddress, DeviceInfo, DeviceName, Rssi};
+use bsg_001::{DeviceAddress, DeviceInfo, DeviceName, DeviceValidationError, Rssi};
 
 #[test]
 fn rejects_empty_device_address() {
     assert_eq!(DeviceAddress::new("  ").unwrap_err().to_string(), "A Bluetooth device address cannot be empty.");
+}
+
+#[test]
+fn rejects_an_address_made_only_of_zeros_whatever_its_separators() {
+    for zeros in ["00:00:00:00:00:00", "00-00-00-00-00-00", "000000000000", "0"] {
+        let error = DeviceAddress::new(zeros).unwrap_err();
+        assert_eq!(error, DeviceValidationError::ZeroAddress(zeros.to_owned()));
+        assert_eq!(error.to_string(), format!("{zeros} is not the address of a device."));
+    }
+    for address in ["AA:BB:CC:DD:EE:FF", "00:00:00:00:00:01", "randomized-address"] {
+        assert!(DeviceAddress::new(address).is_ok(), "{address} must be accepted");
+    }
 }
 
 #[test]

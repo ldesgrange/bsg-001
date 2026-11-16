@@ -4,8 +4,8 @@ use std::error::Error;
 use std::future::Future;
 use std::time::Duration;
 
-use crate::domain::DeviceInfo;
 use crate::domain::logging::ClockTime;
+use crate::domain::{DeviceAddress, DeviceInfo};
 
 pub type ScannerError = Box<dyn Error + Send + Sync>;
 
@@ -35,5 +35,5 @@ pub trait Clock {
 pub trait DeviceConnector {
     type Transport: DeviceTransport;
 
-    fn connect(&self, address: &str) -> impl Future<Output = Result<Self::Transport, String>>;
+    fn connect(&self, address: &DeviceAddress) -> impl Future<Output = Result<Self::Transport, String>>;
 }

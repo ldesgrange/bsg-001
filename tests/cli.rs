@@ -3,7 +3,7 @@ mod fakes;
 
 use std::time::Duration;
 
-use bsg_001::adapters::cli::{Cli, Command, NoProgress, Printed, format_device, format_progress, render_discovery, run, write_result};
+use bsg_001::adapters::cli::{Cli, Command, NoProgress, Printed, format_device, format_progress, refusal, render_discovery, run, write_result};
 use bsg_001::{DeviceAddress, DeviceInfo, DeviceName, Rssi};
 use clap::Parser;
 use fakes::{FakeConnector, FakeDevice, FakeScanner, FixedClock};
@@ -130,6 +130,18 @@ fn drops_a_result_the_reader_no_longer_wants_but_reports_other_write_failures() 
     let mut written = Vec::new();
     write_result(&mut written, "a result\n").unwrap();
     assert_eq!(written, b"a result\n");
+}
+
+#[test]
+fn says_on_macos_only_that_devices_cannot_be_told_apart() {
+    let zeros = DeviceAddress::new("00:00:00:00:00:00").unwrap_err();
+
+    assert_eq!(refusal(&zeros, false), "00:00:00:00:00:00 is not the address of a device.");
+    assert_eq!(
+        refusal(&zeros, true),
+        "00:00:00:00:00:00 is not the address of a device. On macOS the tool cannot tell devices apart yet."
+    );
+    assert_eq!(refusal(&DeviceAddress::new(" ").unwrap_err(), true), "A Bluetooth device address cannot be empty.");
 }
 
 #[test]

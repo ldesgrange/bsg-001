@@ -79,6 +79,22 @@ $ BSG_001_ADDRESS= bsg-001 read
 Error: No device address was given: pass --address or set BSG_001_ADDRESS.
 ```
 
+An address made only of zeros is not the address of any device, whatever its separators.
+The command refuses it before looking for a device.
+
+A device at address "AA:BB:CC:DD:EE:FF" stores the name it is sent.
+Here is the terminal session:
+
+```console
+$ bsg-001 set-name --address 00:00:00:00:00:00 ABCD
+Error: 00:00:00:00:00:00 is not the address of a device.
+```
+
+Nothing is written to the device.
+
+macOS does not tell the tool the address of a device, so [`bsg-001 discover`](discovery.md) lists no device there.
+On macOS the error adds that the tool cannot tell devices apart yet.
+
 ## What the tool prints
 
 Results are printed on standard output.

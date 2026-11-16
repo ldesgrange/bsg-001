@@ -12,9 +12,9 @@ use crate::application::records::records;
 use crate::application::run::{start, stop};
 use crate::application::set_name::{set_name, validate_name};
 use crate::application::{Clock, DeviceConnector, DeviceScanner, DeviceTransport, DiscoveryError, discover_devices};
-use crate::domain::DeviceInfo;
 use crate::domain::logging::{ClockTime, LoggingDuration, LoggingState, RecordTime, Run};
 use crate::domain::reading::Reading;
+use crate::domain::{DeviceAddress, DeviceInfo, DeviceValidationError};
 
 #[derive(Parser)]
 #[command(name = "bsg-001", about = "Tools for the FTLab Wireless Smart Geiger BSG-001.")]
@@ -118,8 +118,19 @@ impl RecordsFormat {
     }
 }
 
-fn given(address: Option<String>) -> Result<String, String> {
-    address.ok_or_else(|| format!("No device address was given: pass --address or set {ADDRESS_VARIABLE}."))
+fn given(address: Option<String>) -> Result<DeviceAddress, String> {
+    let address = address.ok_or_else(|| format!("No device address was given: pass --address or set {ADDRESS_VARIABLE}."))?;
+    DeviceAddress::new(address).map_err(|error| refusal(&error, cfg!(target_os = "macos")))
+}
+
+/// Why an address was refused, as the tool says it.
+///
+/// macOS hides the address of a device, so there zeros are what a user is most likely to have been shown.
+pub fn refusal(error: &DeviceValidationError, on_macos: bool) -> String {
+    match error {
+        DeviceValidationError::ZeroAddress(_) if on_macos => format!("{error} On macOS the tool cannot tell devices apart yet."),
+        _ => error.to_string(),
+    }
 }
 
 /// Where a long operation shows how far it has got.
@@ -289,7 +300,7 @@ fn after_disconnecting<T>(result: Result<T, String>, disconnected: Result<(), St
 }
 
 /// Connect to the device, run an operation over the connection, and disconnect whatever the outcome.
-async fn with_device<C: DeviceConnector, T>(connector: &C, address: &str, operation: impl AsyncFnOnce(&mut C::Transport) -> Result<T, String>) -> Result<T, String> {
+async fn with_device<C: DeviceConnector, T>(connector: &C, address: &DeviceAddress, operation: impl AsyncFnOnce(&mut C::Transport) -> Result<T, String>) -> Result<T, String> {
     let mut device = connector.connect(address).await?;
     let result = operation(&mut device).await;
     after_disconnecting(result, device.disconnect().await)

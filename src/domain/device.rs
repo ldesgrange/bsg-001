@@ -6,6 +6,8 @@ use std::fmt::{self, Display, Formatter};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DeviceValidationError {
     EmptyAddress,
+    /// An address made only of zeros, which belongs to no device.
+    ZeroAddress(String),
     EmptyName,
     RssiOutOfRange,
 }
@@ -13,6 +15,7 @@ pub enum DeviceValidationError {
 impl Display for DeviceValidationError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let message = match self {
+            Self::ZeroAddress(address) => return write!(formatter, "{address} is not the address of a device."),
             Self::EmptyAddress => "A Bluetooth device address cannot be empty.",
             Self::EmptyName => "An advertised device name cannot be empty.",
             Self::RssiOutOfRange => "A Bluetooth RSSI must be between -127 and 20 dBm.",
@@ -23,6 +26,7 @@ impl Display for DeviceValidationError {
 
 impl Error for DeviceValidationError {}
 
+/// What selects one device: its Bluetooth address.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DeviceAddress(String);
 
@@ -31,6 +35,11 @@ impl DeviceAddress {
         let value = value.into();
         if value.trim().is_empty() {
             return Err(DeviceValidationError::EmptyAddress);
+        }
+        // Whatever the separators, an address whose digits are all zeros selects no device.
+        let mut digits = value.chars().filter(char::is_ascii_alphanumeric).peekable();
+        if digits.peek().is_some() && digits.all(|digit| digit == '0') {
+            return Err(DeviceValidationError::ZeroAddress(value));
         }
         Ok(Self(value))
     }
