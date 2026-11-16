@@ -6,14 +6,15 @@ use std::time::Duration;
 use btleplug::api::{Central, Characteristic, Peripheral as _, ValueNotification, WriteType};
 use btleplug::platform::{Adapter, Peripheral};
 use futures_util::{Stream, StreamExt};
+use uuid::Uuid;
 
 use crate::adapters::bluetooth::{first_adapter, scan};
 use crate::application::{DeviceConnector, DeviceTransport};
 
-const SERVICE: &str = "00001523-1212-efde-1523-785feabcd123";
-const COMMAND: &str = "00001524-1212-efde-1523-785feabcd123";
-const MEASUREMENT: &str = "00001525-1212-efde-1523-785feabcd123";
-const LOG: &str = "00001526-1212-efde-1523-785feabcd123";
+const SERVICE: Uuid = Uuid::from_u128(0x0000_1523_1212_efde_1523_785f_eabc_d123);
+const COMMAND: Uuid = Uuid::from_u128(0x0000_1524_1212_efde_1523_785f_eabc_d123);
+const MEASUREMENT: Uuid = Uuid::from_u128(0x0000_1525_1212_efde_1523_785f_eabc_d123);
+const LOG: Uuid = Uuid::from_u128(0x0000_1526_1212_efde_1523_785f_eabc_d123);
 const REPLY_TIMEOUT: Duration = Duration::from_secs(5);
 /// How long the log characteristic stays silent once a download is over.
 const DOWNLOAD_SILENCE: Duration = Duration::from_millis(300);
@@ -36,12 +37,12 @@ impl DeviceTransport for BluetoothTransport {
     }
 
     async fn receive(&mut self, opcode: u8) -> Result<Vec<u8>, String> {
-        receive_matching(&mut self.notifications, &self.measurement.uuid.to_string(), opcode, REPLY_TIMEOUT).await
+        receive_matching(&mut self.notifications, self.measurement.uuid, opcode, REPLY_TIMEOUT).await
     }
 
     async fn receive_records_packet(&mut self, more_expected: bool) -> Result<Option<Vec<u8>>, String> {
         let wait = if more_expected { REPLY_TIMEOUT } else { DOWNLOAD_SILENCE };
-        match receive_packet(&mut self.notifications, &self.log.uuid.to_string(), wait).await {
+        match receive_packet(&mut self.notifications, self.log.uuid, wait).await {
             Err(error) if more_expected => Err(error),
             packet => Ok(packet.ok()),
         }
@@ -52,31 +53,35 @@ impl DeviceTransport for BluetoothTransport {
     }
 }
 
-async fn receive_matching(notifications: &mut (impl Stream<Item = ValueNotification> + Unpin), characteristic: &str, opcode: u8, timeout: Duration) -> Result<Vec<u8>, String> {
-    tokio::time::timeout(timeout, async {
-        while let Some(notification) = notifications.next().await {
-            if notification.uuid.to_string() == characteristic && notification.value.first() == Some(&opcode) {
-                return Ok(notification.value);
-            }
-        }
-        Err("Notification stream closed.".to_owned())
-    })
-    .await
-    .map_err(|_| "Timed out waiting for a device reply.".to_owned())?
+/// Wait for the reply to the query with this opcode, skipping every other notification.
+async fn receive_matching(notifications: &mut (impl Stream<Item = ValueNotification> + Unpin), characteristic: Uuid, opcode: u8, timeout: Duration) -> Result<Vec<u8>, String> {
+    let reply = |notification: &ValueNotification| notification.uuid == characteristic && notification.value.first() == Some(&opcode);
+    receive_where(notifications, timeout, "Timed out waiting for a device reply.", reply).await
 }
 
 /// Wait for the next packet of one characteristic, skipping those of the others.
-async fn receive_packet(notifications: &mut (impl Stream<Item = ValueNotification> + Unpin), characteristic: &str, timeout: Duration) -> Result<Vec<u8>, String> {
+async fn receive_packet(notifications: &mut (impl Stream<Item = ValueNotification> + Unpin), characteristic: Uuid, timeout: Duration) -> Result<Vec<u8>, String> {
+    let packet = |notification: &ValueNotification| notification.uuid == characteristic;
+    receive_where(notifications, timeout, "Timed out waiting for the records.", packet).await
+}
+
+/// Wait for the next notification that is wanted, and give its value.
+async fn receive_where(
+    notifications: &mut (impl Stream<Item = ValueNotification> + Unpin),
+    timeout: Duration,
+    timed_out: &str,
+    wanted: impl Fn(&ValueNotification) -> bool,
+) -> Result<Vec<u8>, String> {
     tokio::time::timeout(timeout, async {
         while let Some(notification) = notifications.next().await {
-            if notification.uuid.to_string() == characteristic {
+            if wanted(&notification) {
                 return Ok(notification.value);
             }
         }
         Err("Notification stream closed.".to_owned())
     })
     .await
-    .map_err(|_| "Timed out waiting for the records.".to_owned())?
+    .map_err(|_| timed_out.to_owned())?
 }
 
 fn has_address(device: &Peripheral, address: &str) -> bool {
@@ -113,13 +118,13 @@ async fn open(peripheral: &Peripheral) -> Result<BluetoothTransport, String> {
     let service = peripheral
         .services()
         .into_iter()
-        .find(|service| service.uuid.to_string() == SERVICE)
+        .find(|service| service.uuid == SERVICE)
         .ok_or("Device command service not found.")?;
-    let characteristic = |uuid: &str, missing: &str| {
+    let characteristic = |uuid: Uuid, missing: &str| {
         service
             .characteristics
             .iter()
-            .find(|characteristic| characteristic.uuid.to_string() == uuid)
+            .find(|characteristic| characteristic.uuid == uuid)
             .cloned()
             .ok_or_else(|| missing.to_owned())
     };
@@ -163,9 +168,7 @@ mod tests {
 
     #[tokio::test]
     async fn matches_on_characteristic_and_opcode_even_without_a_service_uuid() {
-        let uuid = "00001525-1212-efde-1523-785feabcd123".parse().unwrap();
-        let other_uuid = "00001526-1212-efde-1523-785feabcd123".parse().unwrap();
-        let service_uuid = SERVICE.parse().unwrap();
+        let (service_uuid, uuid, other_uuid) = (SERVICE, MEASUREMENT, LOG);
         let mut notifications = stream::iter(vec![
             ValueNotification {
                 service_uuid,
@@ -178,7 +181,7 @@ mod tests {
                 value: vec![0x31],
             },
             ValueNotification {
-                service_uuid: "00000000-0000-0000-0000-000000000000".parse().unwrap(),
+                service_uuid: Uuid::nil(),
                 uuid,
                 value: b"\x31\x00\x04ABCD".to_vec(),
             },
@@ -191,10 +194,9 @@ mod tests {
 
     #[tokio::test]
     async fn takes_the_next_packet_of_the_log_characteristic() {
-        let service_uuid = SERVICE.parse().unwrap();
-        let packet = |uuid: &str, value: &[u8]| ValueNotification {
-            service_uuid,
-            uuid: uuid.parse().unwrap(),
+        let packet = |uuid: Uuid, value: &[u8]| ValueNotification {
+            service_uuid: SERVICE,
+            uuid,
             value: value.to_vec(),
         };
         let mut notifications = stream::iter(vec![packet(MEASUREMENT, &[0xa0]), packet(LOG, &[1, 2]), packet(LOG, &[3, 4])]);

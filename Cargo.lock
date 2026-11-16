@@ -127,6 +127,7 @@ dependencies = [
  "libtest-mimic",
  "syn 3.0.9",
  "tokio",
+ "uuid",
  "varar",
  "varar-cargotest",
  "varar-config",
