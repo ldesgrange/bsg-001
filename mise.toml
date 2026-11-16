@@ -8,8 +8,8 @@ rust = { version = "1.100.0", components = "clippy,rustfmt" } # The components t
 "cargo:cargo-audit" = "0.22.2"
 
 gitleaks = "latest"
-actionlint = "latest"
-shellcheck = "latest" # actionlint uses it to check the scripts of the workflows.
+jactionlint = "latest"
+shellcheck = "latest" # jactionlint uses it to check the scripts of the workflows.
 pre-commit = { version = "latest", postinstall = "pre-commit install --install-hooks --hook-type pre-commit --hook-type pre-push" }
 
 gh = "latest"
@@ -63,7 +63,7 @@ run = "gitleaks dir . --redact --no-banner"
 
 [tasks.lint-actions]
 description = "Lint the GitHub Actions workflows"
-run = "actionlint"
+run = "jactionlint"
 
 [tasks.check]
 description = "Run formatting, lint, workflow lint, architecture checks and tests"

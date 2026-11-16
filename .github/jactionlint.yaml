@@ -1,0 +1,5 @@
+# Configuration of jactionlint, which lints the workflows and the Dependabot configuration.
+rules:
+  dependabot-cooldown:
+    # This project uses a three-day cooldown everywhere: mise, Cargo and Dependabot.
+    days: 3

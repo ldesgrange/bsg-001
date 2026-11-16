@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      # The checks need Rust, cargo-audit, gitleaks, actionlint and shellcheck only.
+      # The checks need Rust, cargo-audit, gitleaks, jactionlint and shellcheck only.
       # Without this, the first `mise run` would install every other tool of mise.toml.
       MISE_DISABLE_TOOLS: pre-commit,opencode,claude-code
     steps:
