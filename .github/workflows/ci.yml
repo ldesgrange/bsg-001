@@ -5,9 +5,10 @@ name: CI
 on: push
 
 # A new push to a branch cancels the run still in progress for that branch.
+# On main, the run in progress finishes first, so that it never stops while publishing the manual; a newer pending run replaces an older one.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -52,10 +53,42 @@ jobs:
 
       # Every test that needs no hardware, with the specifications run against fake devices.
       - name: Run the tests and the executable specifications
+        id: tests
         run: mise run tests
+
+      # On main, the manual is published with the results of the run above, failures included.
+      # It is written only when the specifications ran, whether they passed or not.
+      - name: Write the manual with the results of its examples
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && steps.tests.outcome != 'skipped' }}
+        run: mise run specs-report
+
+      - name: Upload the manual for GitHub Pages
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && steps.tests.outcome != 'skipped' }}
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: target/specs-report
 
       - name: Audit the dependencies
         run: mise run audit
 
       - name: Scan for secrets
         run: mise run secrets
+
+  # Publishes the manual built by the checks: no branch holds the site, so there is nothing to keep in sync.
+  pages:
+    name: Publish the manual
+    needs: check
+    # The manual is published even when an example failed, to show it.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Deploy the manual to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

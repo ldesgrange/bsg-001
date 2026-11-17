@@ -52,6 +52,7 @@ After `mise run specs-e2e`, `mise run specs-report` writes the manual with the r
 Each example is framed in green when it passed and in red when it failed, and hovering a failed value shows the actual one.
 The sentences of an example are coloured by its kind: e2e when it runs the `bsg-001` command, core when it checks the code directly.
 A step binding is e2e when it is registered with `e2e_sensor` in `tests/oaths.rs`.
+Each push to `main` publishes that site, with the results of its CI run, at <https://ldesgrange.github.io/bsg-001/>.
 
 To run the oaths against a real BSG-001 nearby, with the real Bluetooth adapters:
 
