@@ -3,7 +3,7 @@
 use std::fmt::{self, Display, Formatter};
 
 use crate::domain::protocol::{ProtocolError, decode_number};
-use crate::domain::reading::DoseRate;
+use crate::domain::reading::{DoseRate, write_elapsed};
 
 /// How many days a run records for; zero days means the device measures without recording.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -206,10 +206,6 @@ impl LoggingState {
             None => RecordTime::SinceStart { minutes },
         }
     }
-
-    pub fn started(&self) -> String {
-        self.started.map_or_else(|| "unknown".to_owned(), |time| time.to_string())
-    }
 }
 
 /// When a record was written: on the device's clock, or after the start of the run when the clock was not set.
@@ -223,7 +219,7 @@ impl Display for RecordTime {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Clock(time) => time.fmt(formatter),
-            Self::SinceStart { minutes } => write!(formatter, "{} d {:02}:{:02}:00", minutes / 1440, minutes % 1440 / 60, minutes % 60),
+            Self::SinceStart { minutes } => write_elapsed(formatter, minutes / 1440, minutes % 1440 / 60, minutes % 60, 0),
         }
     }
 }

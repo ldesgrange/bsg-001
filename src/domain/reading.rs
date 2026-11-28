@@ -15,8 +15,14 @@ pub struct MeasuringTime {
 
 impl Display for MeasuringTime {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{} d {:02}:{:02}:{:02}", self.days, self.hours, self.minutes, self.seconds)
+        let [days, hours, minutes, seconds] = [self.days, self.hours, self.minutes, self.seconds].map(u32::from);
+        write_elapsed(formatter, days, hours, minutes, seconds)
     }
+}
+
+/// Write a time that has elapsed as days, then hours, minutes and seconds, such as `1 d 02:03:04`.
+pub(crate) fn write_elapsed(formatter: &mut Formatter<'_>, days: u32, hours: u32, minutes: u32, seconds: u32) -> fmt::Result {
+    write!(formatter, "{days} d {hours:02}:{minutes:02}:{seconds:02}")
 }
 
 /// A dose rate, in hundredths of a microsievert per hour.

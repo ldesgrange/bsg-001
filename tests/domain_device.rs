@@ -1,4 +1,4 @@
-use bsg_001::{DeviceAddress, DeviceInfo, DeviceLabel, DeviceName, DeviceValidationError, Rssi};
+use bsg_001::domain::{DeviceAddress, DeviceInfo, DeviceLabel, DeviceName, DeviceValidationError, Rssi};
 
 #[test]
 fn rejects_empty_device_address() {

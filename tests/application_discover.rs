@@ -3,7 +3,8 @@ mod fakes;
 
 use std::time::Duration;
 
-use bsg_001::{DeviceAddress, DeviceInfo, DeviceName, Rssi, discover_devices};
+use bsg_001::application::discover_devices;
+use bsg_001::domain::{DeviceAddress, DeviceInfo, DeviceName, Rssi};
 use fakes::FakeScanner;
 use tokio::runtime::Runtime;
 

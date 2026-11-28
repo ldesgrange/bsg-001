@@ -1,9 +1,10 @@
 #[path = "support/fakes.rs"]
 mod fakes;
 
+use bsg_001::application::OperationError;
 use bsg_001::application::on_device;
 use bsg_001::application::read::read;
-use bsg_001::{DeviceAddress, OperationError};
+use bsg_001::domain::DeviceAddress;
 use fakes::{FakeConnector, FakeDevice};
 
 const ADDRESS: &str = "AA:BB:CC:DD:EE:FF";

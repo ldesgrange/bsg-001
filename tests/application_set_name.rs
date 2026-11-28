@@ -1,9 +1,9 @@
 #[path = "support/fakes.rs"]
 mod fakes;
 
-use bsg_001::DeviceLabel;
 use bsg_001::application::OperationError;
 use bsg_001::application::set_name::set_name;
+use bsg_001::domain::DeviceLabel;
 use bsg_001::domain::protocol::Opcode;
 use fakes::FakeDevice;
 

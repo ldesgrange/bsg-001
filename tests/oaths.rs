@@ -23,10 +23,11 @@ use bsg_001::application::read::read;
 use bsg_001::application::records::records;
 use bsg_001::application::run::{start, stop};
 use bsg_001::application::set_name::set_name;
+use bsg_001::application::{Clock, DeviceConnector, DeviceScanner, OperationError, discover_devices};
 use bsg_001::domain::logging::{Download, LoggingDuration, LoggingState, Run};
 use bsg_001::domain::protocol::{Opcode, command_frame, decode_number, decode_text, encode_text, reply_content};
 use bsg_001::domain::reading::{BatteryLevel, DoseRate, Reading};
-use bsg_001::{Clock, DeviceConnector, DeviceInfo, DeviceLabel, DeviceScanner, OperationError, discover_devices};
+use bsg_001::domain::{DeviceInfo, DeviceLabel};
 use clap::{CommandFactory, Parser};
 #[path = "support/fakes.rs"]
 mod fakes;
@@ -163,7 +164,7 @@ fn real_device() -> Result<&'static (String, String), HandlerError> {
     if let Some(device) = DEVICE.get() {
         return Ok(device);
     }
-    let devices = block_on(discover_devices(&BtleplugDeviceScanner::new(), Duration::from_secs(20))).map_err(|error| HandlerError::new(error.to_string()))?;
+    let devices = block_on(discover_devices(&BtleplugDeviceScanner, Duration::from_secs(20))).map_err(|error| HandlerError::new(error.to_string()))?;
     let device = devices.first().ok_or_else(|| HandlerError::new("No BSG-001 was discovered nearby."))?;
     Ok(DEVICE.get_or_init(|| (device.address.to_string(), device.name.as_ref().map(ToString::to_string).unwrap_or_default())))
 }
@@ -184,7 +185,7 @@ fn run_on_hardware(world: &World, arguments: &[&str]) -> Result<Attempt, Handler
     let arguments: Vec<&str> = arguments.iter().map(String::as_str).collect();
     let renames = matches!(arguments.as_slice(), [COMMAND, "set-name", "--address", _, name] if DeviceLabel::new(*name).is_ok());
     if !renames {
-        return Ok(Attempt::Ran(session(parse(&arguments)?, &BtleplugDeviceScanner::new(), &BluetoothConnector, &SystemClock)));
+        return Ok(Attempt::Ran(session(parse(&arguments)?, &BtleplugDeviceScanner, &BluetoothConnector, &SystemClock)));
     }
     // The advertised label is the name the device had when it was switched on, which is what is put back.
     let original = advertised.strip_prefix(NAME_PREFIX).unwrap_or_default();
@@ -193,10 +194,10 @@ fn run_on_hardware(world: &World, arguments: &[&str]) -> Result<Attempt, Handler
             "The advertised label of the real device is not a valid name, so it could not be put back.",
         ));
     }
-    let ran = session(parse(&arguments)?, &BtleplugDeviceScanner::new(), &BluetoothConnector, &SystemClock);
+    let ran = session(parse(&arguments)?, &BtleplugDeviceScanner, &BluetoothConnector, &SystemClock);
     let restored = session(
         parse(&[COMMAND, "set-name", "--address", address, original])?,
-        &BtleplugDeviceScanner::new(),
+        &BtleplugDeviceScanner,
         &BluetoothConnector,
         &SystemClock,
     );
@@ -659,7 +660,7 @@ fn protocol_steps(steps: &mut Steps<World>) {
                 .map_err(|error| HandlerError::new(error.to_string()))?;
             Ok(BTreeMap::from([
                 ("logging duration".to_owned(), state.duration.to_string()),
-                ("run started".to_owned(), state.started()),
+                ("run started".to_owned(), state.started.map_or_else(|| "unknown".to_owned(), |time| time.to_string())),
                 ("record interval".to_owned(), format!("{} minutes", state.interval_minutes)),
                 ("records".to_owned(), state.records.to_string()),
                 ("checksum".to_owned(), format!("{:02x}", state.checksum)),

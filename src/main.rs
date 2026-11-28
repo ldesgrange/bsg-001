@@ -12,7 +12,7 @@ use clap::Parser;
 #[tokio::main]
 async fn main() -> ExitCode {
     let cli = Cli::parse().with_environment(|variable| std::env::var(variable).ok());
-    let (scanner, mut stderr) = (BtleplugDeviceScanner::new(), std::io::stderr());
+    let (scanner, mut stderr) = (BtleplugDeviceScanner, std::io::stderr());
     // A progress bar is for a person watching a terminal, not for a file or another program.
     let outcome = if stderr.is_terminal() {
         run(cli, &scanner, &BluetoothConnector, &SystemClock, &mut stderr, &mut TerminalProgress::default()).await

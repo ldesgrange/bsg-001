@@ -6,9 +6,10 @@ use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use std::time::Duration;
 
+use bsg_001::application::{Clock, DeviceConnector, DeviceScanner, DeviceTransport, PortError};
 use bsg_001::domain::logging::ClockTime;
 use bsg_001::domain::protocol::Opcode;
-use bsg_001::{Clock, DeviceAddress, DeviceConnector, DeviceInfo, DeviceScanner, DeviceTransport, PortError};
+use bsg_001::domain::{DeviceAddress, DeviceInfo};
 
 const REPLY_LENGTH: usize = 20;
 const SET_NAME: u8 = Opcode::SetName.byte();

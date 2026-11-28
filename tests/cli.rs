@@ -4,7 +4,7 @@ mod fakes;
 use std::time::Duration;
 
 use bsg_001::adapters::cli::{Cli, Command, NoProgress, Printed, format_device, format_progress, refusal, render_discovery, run, write_result};
-use bsg_001::{DeviceAddress, DeviceInfo, DeviceName, Rssi};
+use bsg_001::domain::{DeviceAddress, DeviceInfo, DeviceName, Rssi};
 use clap::Parser;
 use fakes::{FakeConnector, FakeDevice, FakeScanner, FixedClock};
 use tokio::runtime::Runtime;

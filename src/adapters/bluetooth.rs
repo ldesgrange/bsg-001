@@ -13,14 +13,8 @@ use futures_util::StreamExt;
 use crate::application::{DeviceScanner, PortError};
 use crate::domain::{DeviceAddress, DeviceInfo, DeviceName, DeviceValidationError, Rssi};
 
-#[derive(Default)]
+/// Scans with the host's first Bluetooth adapter.
 pub struct BtleplugDeviceScanner;
-
-impl BtleplugDeviceScanner {
-    pub fn new() -> Self {
-        Self
-    }
-}
 
 #[derive(Debug)]
 struct NoBluetoothAdapter;
