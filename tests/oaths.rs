@@ -719,7 +719,7 @@ fn protocol_steps(steps: &mut Steps<World>) {
         match arguments.as_slice() {
             ["set-name", name] => {
                 let label = DeviceLabel::new(*name).map_err(|error| HandlerError::new(error.to_string()))?;
-                block_on(set_name(&mut device, &label)).map(drop).map_err(failed)?;
+                block_on(set_name(&mut device, &label, &mut drop)).map(drop).map_err(failed)?;
             }
             ["logging"] => block_on(logging_state(&mut device)).map(drop).map_err(failed)?,
             ["read"] => block_on(read(&mut device)).map(drop).map_err(failed)?,

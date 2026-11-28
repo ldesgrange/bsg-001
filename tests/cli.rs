@@ -81,7 +81,7 @@ fn escapes_control_characters_in_the_listed_name() {
 #[test]
 fn parses_set_name_address_and_name() {
     let cli = Cli::try_parse_from(["bsg-001", "set-name", "--address", "AA:BB:CC:DD:EE:FF", "ABCD"]).unwrap();
-    assert!(matches!(cli.command, Command::SetName { address, name } if address.as_deref() == Some("AA:BB:CC:DD:EE:FF") && name == "ABCD"));
+    assert!(matches!(cli.command, Command::SetName { device, name } if device.address.as_deref() == Some("AA:BB:CC:DD:EE:FF") && name == "ABCD"));
 }
 
 #[test]

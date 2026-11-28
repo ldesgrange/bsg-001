@@ -99,6 +99,7 @@ pub struct FakeDevice {
     /// The packets of the records download that were sent and not yet received.
     packets: VecDeque<Vec<u8>>,
     writes: Rc<RefCell<Vec<Vec<u8>>>>,
+    disconnected: Rc<Cell<bool>>,
 }
 
 impl FakeDevice {
@@ -120,6 +121,7 @@ impl FakeDevice {
             clock: None,
             packets: VecDeque::new(),
             writes: Rc::default(),
+            disconnected: Rc::default(),
         };
         device.holding(vec![5])
     }
@@ -270,6 +272,11 @@ impl FakeDevice {
     }
 
     /// Every frame written to the device so far, in order.
+    /// Whether the tool disconnected from the device.
+    pub fn was_disconnected(&self) -> bool {
+        self.disconnected.get()
+    }
+
     pub fn writes(&self) -> Vec<Vec<u8>> {
         self.writes.borrow().clone()
     }
@@ -327,6 +334,7 @@ impl DeviceTransport for FakeDevice {
     }
 
     async fn disconnect(&mut self) -> Result<(), PortError> {
+        self.disconnected.set(true);
         Ok(())
     }
 }
