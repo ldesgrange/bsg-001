@@ -28,9 +28,19 @@ impl Display for DeviceValidationError {
 
 impl Error for DeviceValidationError {}
 
-/// What selects one device: its Bluetooth address.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// What selects one device: its Bluetooth address, written as the user typed it.
+///
+/// Two addresses that differ only in the case of their letters are the same address.
+#[derive(Clone, Debug)]
 pub struct DeviceAddress(String);
+
+impl PartialEq for DeviceAddress {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq_ignore_ascii_case(&other.0)
+    }
+}
+
+impl Eq for DeviceAddress {}
 
 impl DeviceAddress {
     pub fn new(value: impl Into<String>) -> Result<Self, DeviceValidationError> {

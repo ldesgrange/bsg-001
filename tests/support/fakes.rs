@@ -367,7 +367,7 @@ impl DeviceConnector for FakeConnector {
             clock.show(*time);
         }
         match &self.device {
-            Some(device) if device.address == address.to_string() => Ok(device.clone()),
+            Some(device) if DeviceAddress::new(&device.address).is_ok_and(|own| own == *address) => Ok(device.clone()),
             _ => Err(format!("Device {address} was not found.").into()),
         }
     }

@@ -59,3 +59,11 @@ fn a_label_is_exactly_four_ascii_letters_or_digits() {
         "The name must contain exactly four ASCII letters or digits."
     );
 }
+
+#[test]
+fn an_address_is_the_same_whatever_the_case_of_its_letters() {
+    let typed = DeviceAddress::new("aa:bb:cc:dd:ee:ff").unwrap();
+    assert_eq!(typed, DeviceAddress::new("AA:BB:CC:DD:EE:FF").unwrap());
+    assert_ne!(typed, DeviceAddress::new("AA:BB:CC:DD:EE:00").unwrap());
+    assert_eq!(typed.to_string(), "aa:bb:cc:dd:ee:ff");
+}

@@ -83,16 +83,16 @@ async fn receive_where(
     .map_err(|_| PortError::from(timed_out))?
 }
 
-fn has_address(device: &Peripheral, address: &str) -> bool {
-    device.address().to_string().eq_ignore_ascii_case(address)
+fn has_address(device: &Peripheral, address: &DeviceAddress) -> bool {
+    DeviceAddress::new(device.address().to_string()).is_ok_and(|own| own == *address)
 }
 
-async fn find_known(adapter: &Adapter, address: &str) -> Result<Option<Peripheral>, PortError> {
+async fn find_known(adapter: &Adapter, address: &DeviceAddress) -> Result<Option<Peripheral>, PortError> {
     let devices = adapter.peripherals().await?;
     Ok(devices.into_iter().find(|device| has_address(device, address)))
 }
 
-async fn connect_peripheral(address: &str) -> Result<Peripheral, PortError> {
+async fn connect_peripheral(address: &DeviceAddress) -> Result<Peripheral, PortError> {
     let adapter = first_adapter().await?;
     if let Some(device) = find_known(&adapter, address).await?
         && device.connect().await.is_ok()
@@ -148,7 +148,7 @@ impl DeviceConnector for BluetoothConnector {
     type Transport = BluetoothTransport;
 
     async fn connect(&self, address: &DeviceAddress) -> Result<BluetoothTransport, PortError> {
-        let peripheral = connect_peripheral(&address.to_string()).await?;
+        let peripheral = connect_peripheral(address).await?;
         match open(&peripheral).await {
             Ok(transport) => Ok(transport),
             Err(error) => {
