@@ -24,7 +24,7 @@ use bsg_001::application::records::records;
 use bsg_001::application::run::{start, stop};
 use bsg_001::application::set_name::set_name;
 use bsg_001::domain::logging::{Download, LoggingDuration, LoggingState, Run};
-use bsg_001::domain::protocol::{command_frame, decode_number, decode_text, encode_text, reply_content};
+use bsg_001::domain::protocol::{Opcode, command_frame, decode_number, decode_text, encode_text, reply_content};
 use bsg_001::domain::reading::{BatteryLevel, DoseRate, Reading};
 use bsg_001::{Clock, DeviceConnector, DeviceInfo, DeviceLabel, DeviceScanner, discover_devices};
 use clap::{CommandFactory, Parser};
@@ -388,7 +388,7 @@ fn tool_steps(steps: &mut Steps<World>) {
     steps.stimulus(
         "A device at address {string} answers the logging state query with a reply that is too short.",
         |mut world: World, address: String| {
-            let device = FakeDevice::storing(&address).answering(0x21, vec![0x21, 0x0b, 0x0a, 0x1a]);
+            let device = FakeDevice::storing(&address).answering(Opcode::QueryLoggingState, vec![0x21, 0x0b, 0x0a, 0x1a]);
             world.device = Some(device);
             world.address = Some(address);
             Ok(world.needing_fake("A reply that is too short"))
@@ -397,7 +397,7 @@ fn tool_steps(steps: &mut Steps<World>) {
     steps.stimulus(
         "A device at address {string} answers the reading query with a reply that is too short.",
         |mut world: World, address: String| {
-            let device = FakeDevice::storing(&address).answering(0xa0, vec![0xa0, 0x0b, 0x01, 0x00]);
+            let device = FakeDevice::storing(&address).answering(Opcode::QueryReading, vec![0xa0, 0x0b, 0x01, 0x00]);
             world.device = Some(device);
             world.address = Some(address);
             Ok(world.needing_fake("A reply that is too short"))
@@ -600,13 +600,18 @@ fn tool_steps(steps: &mut Steps<World>) {
     });
 }
 
+/// The opcode written in hexadecimal, such as `31`.
+fn opcode(hex: &str) -> Opcode {
+    u8::from_str_radix(hex, 16).ok().and_then(Opcode::from_byte).expect("the opcode of an operation")
+}
+
 fn protocol_steps(steps: &mut Steps<World>) {
     steps.sensor("The tool builds the frame for an opcode and a payload as shown.", |_world: World, row: Row| {
-        let opcode = u8::from_str_radix(&row["opcode"], 16).expect("a hexadecimal opcode");
+        let opcode = opcode(&row["opcode"]);
         Ok(row_with("frame", to_hex(&command_frame(opcode, &from_hex(&row["payload"])))))
     });
     steps.sensor("The tool takes the content of the reply to a query as shown.", |_world: World, row: Row| {
-        let query = u8::from_str_radix(&row["query"], 16).expect("a hexadecimal opcode");
+        let query = opcode(&row["query"]);
         let content = reply_content(query, &from_hex(&row["reply"])).map_or_else(|_| "rejected".to_owned(), to_hex);
         Ok(row_with("content", content))
     });
@@ -625,7 +630,7 @@ fn protocol_steps(steps: &mut Steps<World>) {
         "From each reply to the reading query, the tool reads the status, measuring time, average dose rate, last-minute dose rate¹ and battery sensor value shown.",
         |_world: World, row: Row| {
             let reply = from_hex(&row["reply"]);
-            let reading = reply_content(0xa0, &reply)
+            let reading = reply_content(Opcode::QueryReading, &reply)
                 .and_then(Reading::decode)
                 .map_err(|error| HandlerError::new(error.to_string()))?;
             Ok(BTreeMap::from([
@@ -644,7 +649,7 @@ fn protocol_steps(steps: &mut Steps<World>) {
         "From each reply to the logging state query, the tool reads the logging duration, run started, record interval, records and checksum shown.",
         |_world: World, row: Row| {
             let reply = from_hex(&row["reply"]);
-            let state = reply_content(0x21, &reply)
+            let state = reply_content(Opcode::QueryLoggingState, &reply)
                 .and_then(LoggingState::decode)
                 .map_err(|error| HandlerError::new(error.to_string()))?;
             Ok(BTreeMap::from([

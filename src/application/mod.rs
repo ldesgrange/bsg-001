@@ -3,6 +3,7 @@
 mod discover;
 pub mod logging;
 mod ports;
+mod query;
 pub mod read;
 pub mod records;
 pub mod run;

@@ -5,6 +5,7 @@ use std::future::Future;
 use std::time::Duration;
 
 use crate::domain::logging::ClockTime;
+use crate::domain::protocol::Opcode;
 use crate::domain::{DeviceAddress, DeviceInfo};
 
 pub type ScannerError = Box<dyn Error + Send + Sync>;
@@ -16,8 +17,8 @@ pub trait DeviceScanner {
 /// A connection to one device, over which frames are exchanged.
 pub trait DeviceTransport {
     fn write(&mut self, message: &[u8]) -> impl Future<Output = Result<(), String>>;
-    /// Wait for the reply to the query with this opcode.
-    fn receive(&mut self, opcode: u8) -> impl Future<Output = Result<Vec<u8>, String>>;
+    /// Wait for the reply to this query.
+    fn receive(&mut self, query: Opcode) -> impl Future<Output = Result<Vec<u8>, String>>;
     /// Wait for the next packet of a records download.
     ///
     /// While more records are expected, a packet that does not come is an error.

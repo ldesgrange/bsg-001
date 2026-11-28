@@ -11,6 +11,7 @@ use uuid::Uuid;
 use crate::adapters::bluetooth::{first_adapter, scan};
 use crate::application::{DeviceConnector, DeviceTransport};
 use crate::domain::DeviceAddress;
+use crate::domain::protocol::Opcode;
 
 const SERVICE: Uuid = Uuid::from_u128(0x0000_1523_1212_efde_1523_785f_eabc_d123);
 const COMMAND: Uuid = Uuid::from_u128(0x0000_1524_1212_efde_1523_785f_eabc_d123);
@@ -37,8 +38,8 @@ impl DeviceTransport for BluetoothTransport {
             .map_err(|error| error.to_string())
     }
 
-    async fn receive(&mut self, opcode: u8) -> Result<Vec<u8>, String> {
-        receive_matching(&mut self.notifications, self.measurement.uuid, opcode, REPLY_TIMEOUT).await
+    async fn receive(&mut self, query: Opcode) -> Result<Vec<u8>, String> {
+        receive_matching(&mut self.notifications, self.measurement.uuid, query.byte(), REPLY_TIMEOUT).await
     }
 
     async fn receive_records_packet(&mut self, more_expected: bool) -> Result<Option<Vec<u8>>, String> {

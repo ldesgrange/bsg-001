@@ -1,24 +1,41 @@
-use bsg_001::domain::protocol::{ProtocolError, command_frame, decode_number, decode_text, encode_text, reply_content};
+use bsg_001::domain::protocol::{Opcode, ProtocolError, command_frame, decode_number, decode_text, encode_text, reply_content};
+
+#[test]
+fn each_operation_has_its_opcode() {
+    for (opcode, byte) in [
+        (Opcode::StartStop, 0x10),
+        (Opcode::SetClock, 0x20),
+        (Opcode::QueryLoggingState, 0x21),
+        (Opcode::SetName, 0x30),
+        (Opcode::QueryName, 0x31),
+        (Opcode::QueryReading, 0xa0),
+        (Opcode::QueryRecords, 0xa1),
+    ] {
+        assert_eq!(opcode.byte(), byte);
+        assert_eq!(Opcode::from_byte(byte), Some(opcode));
+    }
+    assert_eq!(Opcode::from_byte(0x99), None);
+}
 
 #[test]
 fn a_query_is_its_opcode_alone() {
-    assert_eq!(command_frame(0x21, &[]), [0x21]);
+    assert_eq!(command_frame(Opcode::QueryLoggingState, &[]), [0x21]);
 }
 
 #[test]
 fn a_command_with_a_payload_is_followed_by_its_length() {
-    assert_eq!(command_frame(0x10, &[1, 10]), [0x10, 2, 1, 10]);
+    assert_eq!(command_frame(Opcode::StartStop, &[1, 10]), [0x10, 2, 1, 10]);
 }
 
 #[test]
 fn the_content_of_a_reply_follows_its_opcode_and_length() {
-    assert_eq!(reply_content(0x21, &[0x21, 3, 7, 8, 9]), Ok(&[7, 8, 9][..]));
+    assert_eq!(reply_content(Opcode::QueryLoggingState, &[0x21, 3, 7, 8, 9]), Ok(&[7, 8, 9][..]));
 }
 
 #[test]
 fn a_reply_to_another_query_or_without_a_length_is_unrelated() {
-    assert_eq!(reply_content(0x21, &[0xa0, 1, 7]), Err(ProtocolError::UnrelatedReply));
-    assert_eq!(reply_content(0x21, &[0x21]), Err(ProtocolError::UnrelatedReply));
+    assert_eq!(reply_content(Opcode::QueryLoggingState, &[0xa0, 1, 7]), Err(ProtocolError::UnrelatedReply));
+    assert_eq!(reply_content(Opcode::QueryLoggingState, &[0x21]), Err(ProtocolError::UnrelatedReply));
 }
 
 #[test]

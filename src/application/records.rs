@@ -3,9 +3,8 @@
 use crate::application::logging::logging_state;
 use crate::application::ports::DeviceTransport;
 use crate::domain::logging::{Download, Run};
-use crate::domain::protocol::command_frame;
+use crate::domain::protocol::{Opcode, command_frame};
 
-const QUERY_RECORDS: u8 = 0xa1;
 const ATTEMPTS: usize = 3;
 
 /// Download the records and check them against the checksum of the device.
@@ -20,7 +19,7 @@ pub async fn records(transport: &mut impl DeviceTransport, progress: &mut impl F
         if state.records == 0 {
             return Ok(Run::new(state, Vec::new()));
         }
-        transport.write(&command_frame(QUERY_RECORDS, &[])).await?;
+        transport.write(&command_frame(Opcode::QueryRecords, &[])).await?;
         failure = match download(transport, state.records, progress).await {
             Err(lost) => lost,
             Ok(download) => {

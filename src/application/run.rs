@@ -4,10 +4,8 @@ use crate::application::logging::logging_state;
 use crate::application::ports::{Clock, DeviceTransport};
 use crate::application::read::read;
 use crate::domain::logging::{LoggingDuration, LoggingState};
-use crate::domain::protocol::command_frame;
+use crate::domain::protocol::{Opcode, command_frame};
 
-const SET_CLOCK: u8 = 0x20;
-const START_STOP: u8 = 0x10;
 const START: u8 = 1;
 const STOP: u8 = 0;
 
@@ -26,8 +24,8 @@ pub async fn start(transport: &mut impl DeviceTransport, duration: LoggingDurati
         records => warn(format!("starting a run erases the {records} records the device holds.")),
     }
     let now = clock.now().ok_or("The clock of the computer shows a time the device cannot hold.")?;
-    transport.write(&command_frame(SET_CLOCK, &now.bytes())).await?;
-    transport.write(&command_frame(START_STOP, &[START, duration.days()])).await?;
+    transport.write(&command_frame(Opcode::SetClock, &now.bytes())).await?;
+    transport.write(&command_frame(Opcode::StartStop, &[START, duration.days()])).await?;
     let measuring = read(transport).await?.is_measuring();
     let state = logging_state(transport).await?;
     if measuring && state.duration == duration {
@@ -44,7 +42,7 @@ pub async fn stop(transport: &mut impl DeviceTransport) -> Result<(), String> {
     }
     // The logging duration the device already has is sent back, so that stopping leaves it as it is.
     let duration = logging_state(transport).await?.duration;
-    transport.write(&command_frame(START_STOP, &[STOP, duration.days()])).await?;
+    transport.write(&command_frame(Opcode::StartStop, &[STOP, duration.days()])).await?;
     if read(transport).await?.is_measuring() {
         Err("The device did not stop.".to_owned())
     } else {
