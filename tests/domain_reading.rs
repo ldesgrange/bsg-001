@@ -1,5 +1,5 @@
 use bsg_001::domain::protocol::ProtocolError;
-use bsg_001::domain::reading::{BatteryLevel, DoseRate, Reading};
+use bsg_001::domain::reading::{BatteryLevel, DoseRate, MeasuringStatus, Pulses, Reading};
 
 /// The content of a reading reply: status, measuring time, then the average, the last-minute units and the battery sensor.
 fn content(status: u8, units: u16, battery: u16) -> Vec<u8> {
@@ -9,7 +9,8 @@ fn content(status: u8, units: u16, battery: u16) -> Vec<u8> {
 #[test]
 fn decodes_a_reading() {
     let reading = Reading::decode(&content(1, 10, 205)).unwrap();
-    assert!(reading.measuring);
+    assert_eq!(reading.status, MeasuringStatus::Measuring);
+    assert!(reading.is_measuring());
     assert_eq!(reading.measuring_time.to_string(), "1 d 02:03:04");
     assert_eq!(reading.average.to_string(), "12.34");
     assert_eq!(reading.one_minute().to_string(), "1.00");
@@ -19,8 +20,25 @@ fn decodes_a_reading() {
 #[test]
 fn rounds_the_last_minute_units_to_the_nearest_pulse() {
     for (units, pulses) in [(0, 0), (2, 0), (3, 1), (5, 1), (7, 1), (8, 2), (9, 2), (10, 2)] {
-        assert_eq!(Reading::decode(&content(1, units, 205)).unwrap().last_minute_pulses, pulses, "{units} units");
+        assert_eq!(Reading::decode(&content(1, units, 205)).unwrap().last_minute, Pulses::from_units(units), "{units} units");
+        assert_eq!(Pulses::from_units(units).count(), pulses, "{units} units");
     }
+}
+
+#[test]
+fn a_stopped_device_is_not_measuring() {
+    let reading = Reading::decode(&content(0, 10, 205)).unwrap();
+    assert_eq!(reading.status.to_string(), "stopped");
+    assert!(!reading.is_measuring());
+    assert_eq!(MeasuringStatus::Measuring.to_string(), "measuring");
+}
+
+#[test]
+fn a_pulse_in_the_last_minute_amounts_to_half_a_microsievert_per_hour() {
+    assert_eq!(Pulses::from_units(5).to_string(), "1 pulse");
+    assert_eq!(Pulses::from_units(10).to_string(), "2 pulses");
+    assert_eq!(Pulses::from_units(0).to_string(), "0 pulses");
+    assert_eq!(Pulses::from_units(15).dose_rate().to_string(), "1.50");
 }
 
 #[test]

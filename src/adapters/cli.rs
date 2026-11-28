@@ -13,7 +13,7 @@ use crate::application::run::{start, stop};
 use crate::application::set_name::set_name;
 use crate::application::{Clock, DeviceConnector, DeviceScanner, DeviceTransport, DiscoveryError, discover_devices};
 use crate::domain::logging::{ClockTime, LoggingDuration, LoggingState, RecordTime, Run};
-use crate::domain::reading::Reading;
+use crate::domain::reading::{Pulses, Reading};
 use crate::domain::{DeviceAddress, DeviceInfo, DeviceLabel, DeviceValidationError};
 
 #[derive(Parser)]
@@ -367,23 +367,23 @@ pub fn format_records(run: &Run, format: RecordsFormat) -> Printed {
 
 pub fn format_reading(reading: &Reading) -> String {
     // A stopped device reports the dose rates it held when it stopped; they are not shown, so they cannot pass for current ones.
-    if !reading.measuring {
-        return format!("Status: {}\nLast run: {}\nBattery: {}", reading.status(), reading.measuring_time, reading.battery_level());
+    if !reading.is_measuring() {
+        return format!("Status: {}\nLast run: {}\nBattery: {}", reading.status, reading.measuring_time, reading.battery_level());
     }
     format!(
         "Status: {}\nMeasuring time: {}\nAverage dose rate: {} µSv/h\nOne-minute dose rate: {} µSv/h {}\nBattery: {}",
-        reading.status(),
+        reading.status,
         reading.measuring_time,
         reading.average,
         reading.one_minute(),
-        format_pulses(reading.last_minute_pulses),
+        format_pulses(reading.last_minute),
         reading.battery_level()
     )
 }
 
 /// A number of pulses in brackets, such as `(1 pulse)`.
-pub fn format_pulses(pulses: u16) -> String {
-    format!("({pulses} {})", if pulses == 1 { "pulse" } else { "pulses" })
+pub fn format_pulses(pulses: Pulses) -> String {
+    format!("({pulses})")
 }
 
 /// Show control characters as backslash escapes so a name stays on one line.

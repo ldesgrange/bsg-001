@@ -629,12 +629,12 @@ fn protocol_steps(steps: &mut Steps<World>) {
                 .and_then(Reading::decode)
                 .map_err(|error| HandlerError::new(error.to_string()))?;
             Ok(BTreeMap::from([
-                ("status".to_owned(), reading.status().to_owned()),
+                ("status".to_owned(), reading.status.to_string()),
                 ("measuring time".to_owned(), reading.measuring_time.to_string()),
                 ("average dose rate".to_owned(), reading.average.to_string()),
                 (
                     "last-minute dose rate¹".to_owned(),
-                    format!("{} {}", reading.one_minute(), format_pulses(reading.last_minute_pulses)),
+                    format!("{} {}", reading.one_minute(), format_pulses(reading.last_minute)),
                 ),
                 ("battery sensor".to_owned(), reading.battery_sensor.to_string()),
             ]))

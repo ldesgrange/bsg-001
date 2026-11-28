@@ -71,20 +71,57 @@ impl Display for BatteryLevel {
     }
 }
 
+/// Whether the device is measuring.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MeasuringStatus {
+    Measuring,
+    Stopped,
+}
+
+impl Display for MeasuringStatus {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Measuring => "measuring",
+            Self::Stopped => "stopped",
+        })
+    }
+}
+
+/// The pulses the sensor counted in a minute.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Pulses(u16);
+
+impl Pulses {
+    /// The pulses in a last-minute value, rounded to the nearest: the device sends five units per pulse, and now and then one unit less.
+    pub fn from_units(units: u16) -> Self {
+        Self(units / 5 + u16::from(units % 5 >= 3))
+    }
+
+    pub fn count(self) -> u16 {
+        self.0
+    }
+
+    /// The dose rate these pulses amount to over a minute, where one pulse amounts to 0.50 µSv/h.
+    pub fn dose_rate(self) -> DoseRate {
+        DoseRate::from_hundredths(u32::from(self.0) * 50)
+    }
+}
+
+impl Display for Pulses {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{} {}", self.0, if self.0 == 1 { "pulse" } else { "pulses" })
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Reading {
-    pub measuring: bool,
+    pub status: MeasuringStatus,
     pub measuring_time: MeasuringTime,
     pub average: DoseRate,
     /// The pulses the sensor counted in the last completed minute.
-    pub last_minute_pulses: u16,
+    pub last_minute: Pulses,
     /// The raw value of the battery sensor, not a percentage.
     pub battery_sensor: u16,
-}
-
-/// The pulses in a last-minute value, rounded to the nearest: the device sends five units per pulse, and now and then one unit less.
-fn pulses(units: u16) -> u16 {
-    units / 5 + u16::from(units % 5 >= 3)
 }
 
 impl Reading {
@@ -95,9 +132,9 @@ impl Reading {
         };
         let number = |offset: usize| numbers.get(offset..).and_then(|rest| decode_number(rest).ok()).ok_or(ProtocolError::TruncatedReading);
         Ok(Self {
-            measuring: match status {
-                0 => false,
-                1 => true,
+            status: match status {
+                0 => MeasuringStatus::Stopped,
+                1 => MeasuringStatus::Measuring,
                 _ => return Err(ProtocolError::UnknownStatus),
             },
             measuring_time: MeasuringTime {
@@ -107,21 +144,21 @@ impl Reading {
                 seconds: *seconds,
             },
             average: DoseRate::from_hundredths(u32::from(number(0)?)),
-            last_minute_pulses: pulses(number(2)?),
+            last_minute: Pulses::from_units(number(2)?),
             battery_sensor: number(4)?,
         })
     }
 
-    /// The dose rate over the last completed minute, where one pulse amounts to 0.50 µSv/h.
+    pub fn is_measuring(&self) -> bool {
+        self.status == MeasuringStatus::Measuring
+    }
+
+    /// The dose rate over the last completed minute.
     pub fn one_minute(&self) -> DoseRate {
-        DoseRate::from_hundredths(u32::from(self.last_minute_pulses) * 50)
+        self.last_minute.dose_rate()
     }
 
     pub fn battery_level(&self) -> BatteryLevel {
         BatteryLevel::from_sensor(self.battery_sensor)
-    }
-
-    pub fn status(&self) -> &'static str {
-        if self.measuring { "measuring" } else { "stopped" }
     }
 }
