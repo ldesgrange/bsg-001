@@ -4,13 +4,13 @@ use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::time::Duration;
 
-use crate::application::ports::{DeviceScanner, ScannerError};
+use crate::application::ports::{DeviceScanner, PortError};
 use crate::domain::DeviceInfo;
 
 #[derive(Debug)]
 pub enum DiscoveryError {
     InvalidScanDuration,
-    Scan(ScannerError),
+    Scan(PortError),
 }
 
 impl Display for DiscoveryError {

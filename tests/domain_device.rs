@@ -1,4 +1,4 @@
-use bsg_001::{DeviceAddress, DeviceInfo, DeviceName, DeviceValidationError, Rssi};
+use bsg_001::domain::{DeviceAddress, DeviceInfo, DeviceLabel, DeviceName, DeviceValidationError, Rssi};
 
 #[test]
 fn rejects_empty_device_address() {
@@ -44,4 +44,26 @@ fn identifies_devices_from_the_advertised_name_prefix() {
 
         assert_eq!(device.is_bsg_001(), expected);
     }
+}
+
+#[test]
+fn a_label_is_exactly_four_ascii_letters_or_digits() {
+    for label in ["ABCD", "ab12", "0000"] {
+        assert_eq!(DeviceLabel::new(label).unwrap().to_string(), label);
+    }
+    for label in ["", "ABC", "ABCDE", "A-B1", " A12", "é123", "AB\nD"] {
+        assert_eq!(DeviceLabel::new(label), Err(DeviceValidationError::InvalidLabel), "{label:?} must be refused");
+    }
+    assert_eq!(
+        DeviceValidationError::InvalidLabel.to_string(),
+        "The name must contain exactly four ASCII letters or digits."
+    );
+}
+
+#[test]
+fn an_address_is_the_same_whatever_the_case_of_its_letters() {
+    let typed = DeviceAddress::new("aa:bb:cc:dd:ee:ff").unwrap();
+    assert_eq!(typed, DeviceAddress::new("AA:BB:CC:DD:EE:FF").unwrap());
+    assert_ne!(typed, DeviceAddress::new("AA:BB:CC:DD:EE:00").unwrap());
+    assert_eq!(typed.to_string(), "aa:bb:cc:dd:ee:ff");
 }

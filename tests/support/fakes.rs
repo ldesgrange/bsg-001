@@ -2,21 +2,20 @@
 #![allow(dead_code)]
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use std::time::Duration;
 
+use bsg_001::application::{Clock, DeviceConnector, DeviceScanner, DeviceTransport, PortError};
 use bsg_001::domain::logging::ClockTime;
-use bsg_001::{Clock, DeviceAddress, DeviceConnector, DeviceInfo, DeviceScanner, DeviceTransport};
+use bsg_001::domain::protocol::Opcode;
+use bsg_001::domain::{DeviceAddress, DeviceInfo};
 
 const REPLY_LENGTH: usize = 20;
-const SET_NAME: u8 = 0x30;
-const QUERY_NAME: u8 = 0x31;
-const QUERY_READING: u8 = 0xa0;
-const QUERY_LOGGING: u8 = 0x21;
-const QUERY_RECORDS: u8 = 0xa1;
-const START_STOP: u8 = 0x10;
-const SET_CLOCK: u8 = 0x20;
+const SET_NAME: u8 = Opcode::SetName.byte();
+const QUERY_RECORDS: u8 = Opcode::QueryRecords.byte();
+const START_STOP: u8 = Opcode::StartStop.byte();
+const SET_CLOCK: u8 = Opcode::SetClock.byte();
 
 /// Stands in for the clock of the computer: it shows the same time until it is told to show another.
 ///
@@ -71,7 +70,7 @@ impl FakeScanner {
 }
 
 impl DeviceScanner for FakeScanner {
-    async fn discover(&self, scan_duration: Duration) -> Result<Vec<DeviceInfo>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn discover(&self, scan_duration: Duration) -> Result<Vec<DeviceInfo>, PortError> {
         self.calls.set(self.calls.get() + 1);
         self.scan_duration.set(Some(scan_duration));
         Ok(self.devices.clone())
@@ -87,7 +86,7 @@ pub struct FakeDevice {
     stored: Vec<u8>,
     keeps_name: bool,
     /// The whole reply to each query that is not answered from the stored name.
-    replies: BTreeMap<u8, Vec<u8>>,
+    replies: HashMap<Opcode, Vec<u8>>,
     /// The dose rate of each record held, in hundredths of a microsievert per hour.
     records: Vec<u16>,
     /// The dose rate of a record that the device writes when it is first asked for its records.
@@ -101,6 +100,7 @@ pub struct FakeDevice {
     /// The packets of the records download that were sent and not yet received.
     packets: VecDeque<Vec<u8>>,
     writes: Rc<RefCell<Vec<Vec<u8>>>>,
+    disconnected: Rc<Cell<bool>>,
 }
 
 impl FakeDevice {
@@ -110,9 +110,9 @@ impl FakeDevice {
             address: address.to_owned(),
             stored: b"WXYZ".to_vec(),
             keeps_name: false,
-            replies: BTreeMap::from([
-                (QUERY_READING, reply(QUERY_READING, &[1, 0, 0, 12, 18, 5, 0, 5, 0, 198, 0])),
-                (QUERY_LOGGING, reply(QUERY_LOGGING, &[10, 26, 1, 2, 3, 4, 5, 10, 0, 0, 0])),
+            replies: HashMap::from([
+                (Opcode::QueryReading, reply(Opcode::QueryReading, &[1, 0, 0, 12, 18, 5, 0, 5, 0, 198, 0])),
+                (Opcode::QueryLoggingState, reply(Opcode::QueryLoggingState, &[10, 26, 1, 2, 3, 4, 5, 10, 0, 0, 0])),
             ]),
             records: Vec::new(),
             writes_during_download: None,
@@ -122,6 +122,7 @@ impl FakeDevice {
             clock: None,
             packets: VecDeque::new(),
             writes: Rc::default(),
+            disconnected: Rc::default(),
         };
         device.holding(vec![5])
     }
@@ -141,7 +142,7 @@ impl FakeDevice {
 
     /// Put the status in the reading, unless its reply was made too short.
     fn set_measuring(&mut self, measuring: bool) {
-        if let Some(status) = self.replies.get_mut(&QUERY_READING).and_then(|reply| reply.get_mut(2)) {
+        if let Some(status) = self.replies.get_mut(&Opcode::QueryReading).and_then(|reply| reply.get_mut(2)) {
             *status = u8::from(measuring);
         }
     }
@@ -151,7 +152,7 @@ impl FakeDevice {
     fn start_run(&mut self, days: u8) {
         self.set_measuring(true);
         self.records.clear();
-        if let Some(reply) = self.replies.get_mut(&QUERY_LOGGING).filter(|reply| reply.len() >= 13) {
+        if let Some(reply) = self.replies.get_mut(&Opcode::QueryLoggingState).filter(|reply| reply.len() >= 13) {
             reply[2] = days;
             reply[3..9].copy_from_slice(&self.clock.unwrap_or_default());
             reply[9] = if days > 10 { 60 } else { 10 };
@@ -162,7 +163,7 @@ impl FakeDevice {
     /// Stop as the device does: it keeps its records, and the logging duration it was sent.
     fn stop_run(&mut self, days: u8) {
         self.set_measuring(false);
-        if let Some(duration) = self.replies.get_mut(&QUERY_LOGGING).and_then(|reply| reply.get_mut(2)) {
+        if let Some(duration) = self.replies.get_mut(&Opcode::QueryLoggingState).and_then(|reply| reply.get_mut(2)) {
             *duration = days;
         }
     }
@@ -177,7 +178,7 @@ impl FakeDevice {
     }
 
     /// Answer a query with exactly these bytes, well-formed or not.
-    pub fn answering(mut self, query: u8, reply: Vec<u8>) -> Self {
+    pub fn answering(mut self, query: Opcode, reply: Vec<u8>) -> Self {
         self.replies.insert(query, reply);
         self
     }
@@ -200,7 +201,7 @@ impl FakeDevice {
         // The device sends the pulses of the last minute as five units each.
         content.extend((pulses.expect("a one-minute dose rate such as 0.50 (1 pulse)") * 5).to_le_bytes());
         content.extend(battery.parse::<u16>().expect("a battery value").to_le_bytes());
-        self.answering(QUERY_READING, reply(QUERY_READING, &content))
+        self.answering(Opcode::QueryReading, reply(Opcode::QueryReading, &content))
     }
 
     /// Report a logging state, given as the tool shows it:
@@ -223,7 +224,8 @@ impl FakeDevice {
         content.push(leading_number(interval).expect("a record interval in minutes"));
         content.extend([0; 3]);
         let records = records.parse::<usize>().expect("a number of records");
-        self.answering(QUERY_LOGGING, reply(QUERY_LOGGING, &content)).holding(vec![0; records])
+        self.answering(Opcode::QueryLoggingState, reply(Opcode::QueryLoggingState, &content))
+            .holding(vec![0; records])
     }
 
     /// Hold these records, each given as a dose rate such as `0.05`, oldest first.
@@ -260,7 +262,7 @@ impl FakeDevice {
     fn report_records(&mut self) {
         let number = u16::try_from(self.records.len()).expect("a number of records that fits in two bytes");
         let checksum = self.record_bytes().iter().fold(0, |sum: u8, byte| sum.wrapping_add(*byte));
-        if let Some([.., low, high, sum]) = self.replies.get_mut(&QUERY_LOGGING).and_then(|reply| reply.get_mut(..13)) {
+        if let Some([.., low, high, sum]) = self.replies.get_mut(&Opcode::QueryLoggingState).and_then(|reply| reply.get_mut(..13)) {
             [*low, *high] = number.to_le_bytes();
             *sum = checksum;
         }
@@ -271,13 +273,18 @@ impl FakeDevice {
     }
 
     /// Every frame written to the device so far, in order.
+    /// Whether the tool disconnected from the device.
+    pub fn was_disconnected(&self) -> bool {
+        self.disconnected.get()
+    }
+
     pub fn writes(&self) -> Vec<Vec<u8>> {
         self.writes.borrow().clone()
     }
 }
 
 impl DeviceTransport for FakeDevice {
-    async fn write(&mut self, message: &[u8]) -> Result<(), String> {
+    async fn write(&mut self, message: &[u8]) -> Result<(), PortError> {
         self.writes.borrow_mut().push(message.to_vec());
         if message.first() == Some(&SET_NAME) && !self.keeps_name {
             self.stored = message[3..3 + usize::from(message[2])].to_vec();
@@ -310,24 +317,25 @@ impl DeviceTransport for FakeDevice {
         Ok(())
     }
 
-    async fn receive(&mut self, opcode: u8) -> Result<Vec<u8>, String> {
-        if let Some(reply) = self.replies.get(&opcode) {
+    async fn receive(&mut self, query: Opcode) -> Result<Vec<u8>, PortError> {
+        if let Some(reply) = self.replies.get(&query) {
             return Ok(reply.clone());
         }
-        assert_eq!(opcode, QUERY_NAME, "the fake device does not answer query {opcode:02x}");
+        assert_eq!(query, Opcode::QueryName, "the fake device does not answer {query:?}");
         let mut content = vec![u8::try_from(self.stored.len()).expect("a short name")];
         content.extend_from_slice(&self.stored);
-        Ok(reply(QUERY_NAME, &content))
+        Ok(reply(Opcode::QueryName, &content))
     }
 
-    async fn receive_records_packet(&mut self, more_expected: bool) -> Result<Option<Vec<u8>>, String> {
+    async fn receive_records_packet(&mut self, more_expected: bool) -> Result<Option<Vec<u8>>, PortError> {
         match self.packets.pop_front() {
-            None if more_expected => Err("Timed out waiting for the records.".to_owned()),
+            None if more_expected => Err("Timed out waiting for the records.".into()),
             packet => Ok(packet),
         }
     }
 
-    async fn disconnect(&mut self) -> Result<(), String> {
+    async fn disconnect(&mut self) -> Result<(), PortError> {
+        self.disconnected.set(true);
         Ok(())
     }
 }
@@ -338,8 +346,8 @@ fn hundredths(dose_rate: &str) -> u16 {
 }
 
 /// A reply as the device sends it: the opcode, its usual length byte, the content, and padding.
-fn reply(opcode: u8, content: &[u8]) -> Vec<u8> {
-    let mut reply = vec![opcode, 0x0b];
+fn reply(opcode: Opcode, content: &[u8]) -> Vec<u8> {
+    let mut reply = vec![opcode.byte(), 0x0b];
     reply.extend_from_slice(content);
     reply.resize(REPLY_LENGTH, 0);
     reply
@@ -355,13 +363,13 @@ pub struct FakeConnector {
 impl DeviceConnector for FakeConnector {
     type Transport = FakeDevice;
 
-    async fn connect(&self, address: &DeviceAddress) -> Result<FakeDevice, String> {
+    async fn connect(&self, address: &DeviceAddress) -> Result<FakeDevice, PortError> {
         if let Some((clock, time)) = &self.connected_at {
             clock.show(*time);
         }
         match &self.device {
-            Some(device) if device.address == address.to_string() => Ok(device.clone()),
-            _ => Err(format!("Device {address} was not found.")),
+            Some(device) if DeviceAddress::new(&device.address).is_ok_and(|own| own == *address) => Ok(device.clone()),
+            _ => Err(format!("Device {address} was not found.").into()),
         }
     }
 }

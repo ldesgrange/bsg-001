@@ -1,20 +1,21 @@
 //! Command-line presentation helpers for BSG-001 operations.
 
+use std::error::Error;
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::time::Duration;
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 
 use crate::application::logging::logging_state;
 use crate::application::read::read;
 use crate::application::records::records;
 use crate::application::run::{start, stop};
-use crate::application::set_name::{set_name, validate_name};
-use crate::application::{Clock, DeviceConnector, DeviceScanner, DeviceTransport, DiscoveryError, discover_devices};
+use crate::application::set_name::set_name;
+use crate::application::{Clock, DeviceConnector, DeviceScanner, DiscoveryError, discover_devices, on_device};
 use crate::domain::logging::{ClockTime, LoggingDuration, LoggingState, RecordTime, Run};
-use crate::domain::reading::Reading;
-use crate::domain::{DeviceAddress, DeviceInfo, DeviceValidationError};
+use crate::domain::reading::{Pulses, Reading};
+use crate::domain::{DeviceAddress, DeviceInfo, DeviceLabel, DeviceValidationError};
 
 #[derive(Parser)]
 #[command(name = "bsg-001", about = "Tools for the FTLab Wireless Smart Geiger BSG-001.")]
@@ -32,37 +33,32 @@ pub enum Command {
     },
     /// Show how the device at the given address is set up to record, and how many records it holds.
     Logging {
-        /// The address of the device; taken from the BSG_001_ADDRESS environment variable when not given.
-        #[arg(long)]
-        address: Option<String>,
+        #[command(flatten)]
+        device: DeviceArgs,
     },
     /// Show what the device at the given address is measuring right now.
     Read {
-        /// The address of the device; taken from the BSG_001_ADDRESS environment variable when not given.
-        #[arg(long)]
-        address: Option<String>,
+        #[command(flatten)]
+        device: DeviceArgs,
     },
     /// Download the records held by the device at the given address, leaving out the first one.
     Records {
-        /// The address of the device; taken from the BSG_001_ADDRESS environment variable when not given.
-        #[arg(long)]
-        address: Option<String>,
+        #[command(flatten)]
+        device: DeviceArgs,
         /// How to print the records: text or csv; taken from the BSG_001_FORMAT environment variable when not given, else text.
         #[arg(long)]
         format: Option<String>,
     },
     /// Permanently rename the device at the given address.
     SetName {
-        /// The address of the device; taken from the BSG_001_ADDRESS environment variable when not given.
-        #[arg(long)]
-        address: Option<String>,
+        #[command(flatten)]
+        device: DeviceArgs,
         name: String,
     },
     /// Start a run on the device, which erases the records of the previous run.
     Start {
-        /// The address of the device; taken from the BSG_001_ADDRESS environment variable when not given.
-        #[arg(long)]
-        address: Option<String>,
+        #[command(flatten)]
+        device: DeviceArgs,
         /// How long the run records for, from 1 to 31 days.
         #[arg(long, default_value_t = 10, conflicts_with = "no_logging")]
         days: u8,
@@ -72,10 +68,17 @@ pub enum Command {
     },
     /// Stop the run in progress on the device.
     Stop {
-        /// The address of the device; taken from the BSG_001_ADDRESS environment variable when not given.
-        #[arg(long)]
-        address: Option<String>,
+        #[command(flatten)]
+        device: DeviceArgs,
     },
+}
+
+/// Which device a command operates.
+#[derive(Args)]
+pub struct DeviceArgs {
+    /// The address of the device; taken from the BSG_001_ADDRESS environment variable when not given.
+    #[arg(long)]
+    pub address: Option<String>,
 }
 
 pub const ADDRESS_VARIABLE: &str = "BSG_001_ADDRESS";
@@ -87,15 +90,14 @@ impl Cli {
     pub fn with_environment(mut self, variable: impl Fn(&str) -> Option<String>) -> Self {
         // A variable that is set but empty counts as not set.
         let variable = |name: &str| variable(name).filter(|value| !value.is_empty());
-        match &mut self.command {
-            Command::Discover { .. } => {}
-            Command::Logging { address } | Command::Read { address } | Command::SetName { address, .. } | Command::Start { address, .. } | Command::Stop { address } => {
-                *address = address.take().or_else(|| variable(ADDRESS_VARIABLE));
-            }
-            Command::Records { address, format } => {
-                *address = address.take().or_else(|| variable(ADDRESS_VARIABLE));
-                *format = format.take().or_else(|| variable(FORMAT_VARIABLE));
-            }
+        let (device, format) = match &mut self.command {
+            Command::Discover { .. } => return self,
+            Command::Records { device, format } => (device, Some(format)),
+            Command::Logging { device } | Command::Read { device } | Command::SetName { device, .. } | Command::Start { device, .. } | Command::Stop { device } => (device, None),
+        };
+        device.address = device.address.take().or_else(|| variable(ADDRESS_VARIABLE));
+        if let Some(format) = format {
+            *format = format.take().or_else(|| variable(FORMAT_VARIABLE));
         }
         self
     }
@@ -118,8 +120,10 @@ impl RecordsFormat {
     }
 }
 
-fn given(address: Option<String>) -> Result<DeviceAddress, String> {
-    let address = address.ok_or_else(|| format!("No device address was given: pass --address or set {ADDRESS_VARIABLE}."))?;
+fn given(device: DeviceArgs) -> Result<DeviceAddress, String> {
+    let address = device
+        .address
+        .ok_or_else(|| format!("No device address was given: pass --address or set {ADDRESS_VARIABLE}."))?;
     DeviceAddress::new(address).map_err(|error| refusal(&error, cfg!(target_os = "macos")))
 }
 
@@ -216,60 +220,10 @@ pub async fn run(
     stderr: &mut impl std::io::Write,
     progress: &mut impl Progress,
 ) -> Outcome {
-    let result = match cli.command {
-        Command::Discover { scan_duration } => render_discovery(scanner, scan_duration).await.map_err(|error| error.to_string()),
-        Command::Logging { address } => match given(address) {
-            Err(error) => Err(error),
-            Ok(address) => with_device(connector, &address, async |device| logging_state(device).await)
-                .await
-                .map(|state| Printed::Result(format_logging_state(&state))),
-        },
-        Command::Read { address } => match given(address) {
-            Err(error) => Err(error),
-            Ok(address) => with_device(connector, &address, async |device| read(device).await)
-                .await
-                .map(|reading| Printed::Result(format_reading(&reading))),
-        },
-        Command::Records { address, format } => match (given(address), RecordsFormat::chosen(format.as_deref())) {
-            (Err(error), _) | (_, Err(error)) => Err(error),
-            (Ok(address), Ok(format)) => with_device(connector, &address, async |device| {
-                let result = records(device, &mut |done, total| progress.show(done, total)).await;
-                progress.clear();
-                result
-            })
-            .await
-            .map(|run| format_records(&run, format)),
-        },
-        Command::SetName { address, name } => match (given(address), validate_name(&name)) {
-            (Err(error), _) | (_, Err(error)) => Err(error),
-            (Ok(address), Ok(())) => {
-                let _ = writeln!(stderr, "Warning: renaming during logging may reset the measuring-time counter.");
-                with_device(connector, &address, async |device| set_name(device, &name).await)
-                    .await
-                    .map(|confirmed| Printed::Result(format!("Confirmed name: {confirmed}. Power-cycle the device to update its advertised name.")))
-            }
-        },
-        Command::Start { address, days, no_logging } => {
-            let duration = if no_logging { Some(LoggingDuration::OFF) } else { LoggingDuration::of_run(days) };
-            match (given(address), duration.ok_or_else(|| "A run lasts from 1 to 31 days.".to_owned())) {
-                (Err(error), _) | (_, Err(error)) => Err(error),
-                (Ok(address), Ok(duration)) => {
-                    let mut warn = |warning: String| {
-                        let _ = writeln!(stderr, "Warning: {warning}");
-                    };
-                    with_device(connector, &address, async |device| start(device, duration, clock, &mut warn).await)
-                        .await
-                        .map(|state| Printed::Result(format_started(&state)))
-                }
-            }
-        }
-        Command::Stop { address } => match given(address) {
-            Err(error) => Err(error),
-            Ok(address) => with_device(connector, &address, async |device| stop(device).await)
-                .await
-                .map(|()| Printed::Result("Stopped measuring.".to_owned())),
-        },
+    let mut warn = |warning: String| {
+        let _ = writeln!(stderr, "Warning: {warning}");
     };
+    let result = execute(cli.command, scanner, connector, clock, &mut warn, progress).await;
     match result {
         Ok(Printed::Result(output)) => Outcome {
             stdout: format!("{output}\n"),
@@ -283,7 +237,7 @@ pub async fn run(
             }
         }
         Err(error) => {
-            let _ = writeln!(stderr, "Error: {}", error.trim_end());
+            let _ = writeln!(stderr, "Error: {}", error.to_string().trim_end());
             Outcome {
                 stdout: String::new(),
                 success: false,
@@ -292,18 +246,54 @@ pub async fn run(
     }
 }
 
-/// Give the outcome of an operation once the device is disconnected, preferring the operation's own error.
-fn after_disconnecting<T>(result: Result<T, String>, disconnected: Result<(), String>) -> Result<T, String> {
-    let value = result?;
-    disconnected?;
-    Ok(value)
-}
-
-/// Connect to the device, run an operation over the connection, and disconnect whatever the outcome.
-async fn with_device<C: DeviceConnector, T>(connector: &C, address: &DeviceAddress, operation: impl AsyncFnOnce(&mut C::Transport) -> Result<T, String>) -> Result<T, String> {
-    let mut device = connector.connect(address).await?;
-    let result = operation(&mut device).await;
-    after_disconnecting(result, device.disconnect().await)
+/// Carry out a command, checking what was given before the device is contacted.
+async fn execute(
+    command: Command,
+    scanner: &impl DeviceScanner,
+    connector: &impl DeviceConnector,
+    clock: &impl Clock,
+    warn: &mut impl FnMut(String),
+    progress: &mut impl Progress,
+) -> Result<Printed, Box<dyn Error>> {
+    Ok(match command {
+        Command::Discover { scan_duration } => render_discovery(scanner, scan_duration).await?,
+        Command::Logging { device } => {
+            let state = on_device(connector, &given(device)?, async |device| logging_state(device).await).await?;
+            Printed::Result(format_logging_state(&state))
+        }
+        Command::Read { device } => {
+            let reading = on_device(connector, &given(device)?, async |device| read(device).await).await?;
+            Printed::Result(format_reading(&reading))
+        }
+        Command::Records { device, format } => {
+            let address = given(device)?;
+            let format = RecordsFormat::chosen(format.as_deref())?;
+            let run = on_device(connector, &address, async |device| {
+                let result = records(device, &mut |done, total| progress.show(done, total)).await;
+                progress.clear();
+                result
+            })
+            .await?;
+            format_records(&run, format)
+        }
+        Command::SetName { device, name } => {
+            let address = given(device)?;
+            let label = DeviceLabel::new(name)?;
+            let confirmed = on_device(connector, &address, async |device| set_name(device, &label, warn).await).await?;
+            Printed::Result(format!("Confirmed name: {confirmed}. Power-cycle the device to update its advertised name."))
+        }
+        Command::Start { device, days, no_logging } => {
+            let address = given(device)?;
+            let duration = if no_logging { Some(LoggingDuration::OFF) } else { LoggingDuration::of_run(days) };
+            let duration = duration.ok_or("A run lasts from 1 to 31 days.")?;
+            let state = on_device(connector, &address, async |device| start(device, duration, clock, warn).await).await?;
+            Printed::Result(format_started(&state))
+        }
+        Command::Stop { device } => {
+            on_device(connector, &given(device)?, async |device| stop(device).await).await?;
+            Printed::Result("Stopped measuring.".to_owned())
+        }
+    })
 }
 
 /// What a run that has just started is doing, from the logging state the device reports.
@@ -367,23 +357,23 @@ pub fn format_records(run: &Run, format: RecordsFormat) -> Printed {
 
 pub fn format_reading(reading: &Reading) -> String {
     // A stopped device reports the dose rates it held when it stopped; they are not shown, so they cannot pass for current ones.
-    if !reading.measuring {
-        return format!("Status: {}\nLast run: {}\nBattery: {}", reading.status(), reading.measuring_time, reading.battery_level());
+    if !reading.is_measuring() {
+        return format!("Status: {}\nLast run: {}\nBattery: {}", reading.status, reading.measuring_time, reading.battery_level());
     }
     format!(
         "Status: {}\nMeasuring time: {}\nAverage dose rate: {} µSv/h\nOne-minute dose rate: {} µSv/h {}\nBattery: {}",
-        reading.status(),
+        reading.status,
         reading.measuring_time,
         reading.average,
         reading.one_minute(),
-        format_pulses(reading.last_minute_pulses),
+        format_pulses(reading.last_minute),
         reading.battery_level()
     )
 }
 
 /// A number of pulses in brackets, such as `(1 pulse)`.
-pub fn format_pulses(pulses: u16) -> String {
-    format!("({pulses} {})", if pulses == 1 { "pulse" } else { "pulses" })
+pub fn format_pulses(pulses: Pulses) -> String {
+    format!("({pulses})")
 }
 
 /// Show control characters as backslash escapes so a name stays on one line.

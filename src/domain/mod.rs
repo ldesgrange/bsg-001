@@ -5,4 +5,4 @@ pub mod logging;
 pub mod protocol;
 pub mod reading;
 
-pub use device::{DeviceAddress, DeviceInfo, DeviceName, DeviceValidationError, Rssi};
+pub use device::{DeviceAddress, DeviceInfo, DeviceLabel, DeviceName, DeviceValidationError, Rssi};

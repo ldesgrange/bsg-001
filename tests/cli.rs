@@ -4,7 +4,7 @@ mod fakes;
 use std::time::Duration;
 
 use bsg_001::adapters::cli::{Cli, Command, NoProgress, Printed, format_device, format_progress, refusal, render_discovery, run, write_result};
-use bsg_001::{DeviceAddress, DeviceInfo, DeviceName, Rssi};
+use bsg_001::domain::{DeviceAddress, DeviceInfo, DeviceName, Rssi};
 use clap::Parser;
 use fakes::{FakeConnector, FakeDevice, FakeScanner, FixedClock};
 use tokio::runtime::Runtime;
@@ -81,7 +81,7 @@ fn escapes_control_characters_in_the_listed_name() {
 #[test]
 fn parses_set_name_address_and_name() {
     let cli = Cli::try_parse_from(["bsg-001", "set-name", "--address", "AA:BB:CC:DD:EE:FF", "ABCD"]).unwrap();
-    assert!(matches!(cli.command, Command::SetName { address, name } if address.as_deref() == Some("AA:BB:CC:DD:EE:FF") && name == "ABCD"));
+    assert!(matches!(cli.command, Command::SetName { device, name } if device.address.as_deref() == Some("AA:BB:CC:DD:EE:FF") && name == "ABCD"));
 }
 
 #[test]

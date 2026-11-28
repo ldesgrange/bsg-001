@@ -12,6 +12,7 @@ pub enum ProtocolError {
     TruncatedNumber,
     TruncatedReading,
     TruncatedLoggingState,
+    UnknownLoggingDuration,
     TruncatedRecords,
     UnknownStatus,
 }
@@ -26,6 +27,7 @@ impl Display for ProtocolError {
             Self::TruncatedNumber => "The content stops before the number does.",
             Self::TruncatedReading => "The content stops before the reading does.",
             Self::TruncatedLoggingState => "The content stops before the logging state does.",
+            Self::UnknownLoggingDuration => "The logging duration is neither off nor from 1 to 31 days.",
             Self::TruncatedRecords => "The packets stop before the records do.",
             Self::UnknownStatus => "The status is neither measuring nor stopped.",
         };
@@ -35,9 +37,50 @@ impl Display for ProtocolError {
 
 impl Error for ProtocolError {}
 
+/// The operations a BSG-001 understands, each identified by the first byte of a frame.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Opcode {
+    StartStop,
+    SetClock,
+    QueryLoggingState,
+    SetName,
+    QueryName,
+    QueryReading,
+    QueryRecords,
+}
+
+impl Opcode {
+    const ALL: [Self; 7] = [
+        Self::StartStop,
+        Self::SetClock,
+        Self::QueryLoggingState,
+        Self::SetName,
+        Self::QueryName,
+        Self::QueryReading,
+        Self::QueryRecords,
+    ];
+
+    pub const fn byte(self) -> u8 {
+        match self {
+            Self::StartStop => 0x10,
+            Self::SetClock => 0x20,
+            Self::QueryLoggingState => 0x21,
+            Self::SetName => 0x30,
+            Self::QueryName => 0x31,
+            Self::QueryReading => 0xa0,
+            Self::QueryRecords => 0xa1,
+        }
+    }
+
+    /// The operation a byte identifies, if any.
+    pub fn from_byte(byte: u8) -> Option<Self> {
+        Self::ALL.into_iter().find(|opcode| opcode.byte() == byte)
+    }
+}
+
 /// Frame a command; a command without a payload is a query, written as its opcode alone.
-pub fn command_frame(opcode: u8, payload: &[u8]) -> Vec<u8> {
-    let mut frame = vec![opcode];
+pub fn command_frame(opcode: Opcode, payload: &[u8]) -> Vec<u8> {
+    let mut frame = vec![opcode.byte()];
     if !payload.is_empty() {
         frame.push(u8::try_from(payload.len()).expect("a command payload fits in one frame"));
         frame.extend_from_slice(payload);
@@ -46,9 +89,9 @@ pub fn command_frame(opcode: u8, payload: &[u8]) -> Vec<u8> {
 }
 
 /// Return what follows the opcode and length byte of the reply to a query.
-pub fn reply_content(query: u8, reply: &[u8]) -> Result<&[u8], ProtocolError> {
+pub fn reply_content(query: Opcode, reply: &[u8]) -> Result<&[u8], ProtocolError> {
     match reply {
-        [opcode, _length, content @ ..] if *opcode == query => Ok(content),
+        [opcode, _length, content @ ..] if *opcode == query.byte() => Ok(content),
         _ => Err(ProtocolError::UnrelatedReply),
     }
 }

@@ -22,11 +22,12 @@ use bsg_001::application::logging::logging_state;
 use bsg_001::application::read::read;
 use bsg_001::application::records::records;
 use bsg_001::application::run::{start, stop};
-use bsg_001::application::set_name::{set_name, validate_name};
+use bsg_001::application::set_name::set_name;
+use bsg_001::application::{Clock, DeviceConnector, DeviceScanner, OperationError, discover_devices};
 use bsg_001::domain::logging::{Download, LoggingDuration, LoggingState, Run};
-use bsg_001::domain::protocol::{command_frame, decode_number, decode_text, encode_text, reply_content};
+use bsg_001::domain::protocol::{Opcode, command_frame, decode_number, decode_text, encode_text, reply_content};
 use bsg_001::domain::reading::{BatteryLevel, DoseRate, Reading};
-use bsg_001::{Clock, DeviceConnector, DeviceInfo, DeviceScanner, discover_devices};
+use bsg_001::domain::{DeviceInfo, DeviceLabel};
 use clap::{CommandFactory, Parser};
 #[path = "support/fakes.rs"]
 mod fakes;
@@ -163,7 +164,7 @@ fn real_device() -> Result<&'static (String, String), HandlerError> {
     if let Some(device) = DEVICE.get() {
         return Ok(device);
     }
-    let devices = block_on(discover_devices(&BtleplugDeviceScanner::new(), Duration::from_secs(20))).map_err(|error| HandlerError::new(error.to_string()))?;
+    let devices = block_on(discover_devices(&BtleplugDeviceScanner, Duration::from_secs(20))).map_err(|error| HandlerError::new(error.to_string()))?;
     let device = devices.first().ok_or_else(|| HandlerError::new("No BSG-001 was discovered nearby."))?;
     Ok(DEVICE.get_or_init(|| (device.address.to_string(), device.name.as_ref().map(ToString::to_string).unwrap_or_default())))
 }
@@ -182,21 +183,21 @@ fn run_on_hardware(world: &World, arguments: &[&str]) -> Result<Attempt, Handler
         })
         .collect();
     let arguments: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    let renames = matches!(arguments.as_slice(), [COMMAND, "set-name", "--address", _, name] if validate_name(name).is_ok());
+    let renames = matches!(arguments.as_slice(), [COMMAND, "set-name", "--address", _, name] if DeviceLabel::new(*name).is_ok());
     if !renames {
-        return Ok(Attempt::Ran(session(parse(&arguments)?, &BtleplugDeviceScanner::new(), &BluetoothConnector, &SystemClock)));
+        return Ok(Attempt::Ran(session(parse(&arguments)?, &BtleplugDeviceScanner, &BluetoothConnector, &SystemClock)));
     }
     // The advertised label is the name the device had when it was switched on, which is what is put back.
     let original = advertised.strip_prefix(NAME_PREFIX).unwrap_or_default();
-    if validate_name(original).is_err() {
+    if DeviceLabel::new(original).is_err() {
         return Err(HandlerError::new(
             "The advertised label of the real device is not a valid name, so it could not be put back.",
         ));
     }
-    let ran = session(parse(&arguments)?, &BtleplugDeviceScanner::new(), &BluetoothConnector, &SystemClock);
+    let ran = session(parse(&arguments)?, &BtleplugDeviceScanner, &BluetoothConnector, &SystemClock);
     let restored = session(
         parse(&[COMMAND, "set-name", "--address", address, original])?,
-        &BtleplugDeviceScanner::new(),
+        &BtleplugDeviceScanner,
         &BluetoothConnector,
         &SystemClock,
     );
@@ -285,7 +286,7 @@ fn shape(session: &str) -> String {
 }
 
 fn is_ordinary_name(name: &str) -> bool {
-    name.strip_prefix(NAME_PREFIX).is_some_and(|label| validate_name(label).is_ok())
+    name.strip_prefix(NAME_PREFIX).is_some_and(|label| DeviceLabel::new(label).is_ok())
 }
 
 /// Dose rates as a list, or `none` when there are none.
@@ -302,7 +303,7 @@ fn dose_rates(list: &str) -> Vec<DoseRate> {
         return Vec::new();
     }
     let hundredths = |text: &str| text.replace('.', "").parse().expect("a dose rate with two decimal places");
-    list.split(", ").map(|text| DoseRate { hundredths: hundredths(text) }).collect()
+    list.split(", ").map(|text| DoseRate::from_hundredths(hundredths(text))).collect()
 }
 
 /// The frames written to a device, in order.
@@ -388,7 +389,7 @@ fn tool_steps(steps: &mut Steps<World>) {
     steps.stimulus(
         "A device at address {string} answers the logging state query with a reply that is too short.",
         |mut world: World, address: String| {
-            let device = FakeDevice::storing(&address).answering(0x21, vec![0x21, 0x0b, 0x0a, 0x1a]);
+            let device = FakeDevice::storing(&address).answering(Opcode::QueryLoggingState, vec![0x21, 0x0b, 0x0a, 0x1a]);
             world.device = Some(device);
             world.address = Some(address);
             Ok(world.needing_fake("A reply that is too short"))
@@ -397,7 +398,7 @@ fn tool_steps(steps: &mut Steps<World>) {
     steps.stimulus(
         "A device at address {string} answers the reading query with a reply that is too short.",
         |mut world: World, address: String| {
-            let device = FakeDevice::storing(&address).answering(0xa0, vec![0xa0, 0x0b, 0x01, 0x00]);
+            let device = FakeDevice::storing(&address).answering(Opcode::QueryReading, vec![0xa0, 0x0b, 0x01, 0x00]);
             world.device = Some(device);
             world.address = Some(address);
             Ok(world.needing_fake("A reply that is too short"))
@@ -600,13 +601,23 @@ fn tool_steps(steps: &mut Steps<World>) {
     });
 }
 
+/// An example that failed because the operation did.
+fn failed(error: OperationError) -> HandlerError {
+    HandlerError::new(error.to_string())
+}
+
+/// The opcode written in hexadecimal, such as `31`.
+fn opcode(hex: &str) -> Opcode {
+    u8::from_str_radix(hex, 16).ok().and_then(Opcode::from_byte).expect("the opcode of an operation")
+}
+
 fn protocol_steps(steps: &mut Steps<World>) {
     steps.sensor("The tool builds the frame for an opcode and a payload as shown.", |_world: World, row: Row| {
-        let opcode = u8::from_str_radix(&row["opcode"], 16).expect("a hexadecimal opcode");
+        let opcode = opcode(&row["opcode"]);
         Ok(row_with("frame", to_hex(&command_frame(opcode, &from_hex(&row["payload"])))))
     });
     steps.sensor("The tool takes the content of the reply to a query as shown.", |_world: World, row: Row| {
-        let query = u8::from_str_radix(&row["query"], 16).expect("a hexadecimal opcode");
+        let query = opcode(&row["query"]);
         let content = reply_content(query, &from_hex(&row["reply"])).map_or_else(|_| "rejected".to_owned(), to_hex);
         Ok(row_with("content", content))
     });
@@ -625,16 +636,16 @@ fn protocol_steps(steps: &mut Steps<World>) {
         "From each reply to the reading query, the tool reads the status, measuring time, average dose rate, last-minute dose rate¹ and battery sensor value shown.",
         |_world: World, row: Row| {
             let reply = from_hex(&row["reply"]);
-            let reading = reply_content(0xa0, &reply)
+            let reading = reply_content(Opcode::QueryReading, &reply)
                 .and_then(Reading::decode)
                 .map_err(|error| HandlerError::new(error.to_string()))?;
             Ok(BTreeMap::from([
-                ("status".to_owned(), reading.status().to_owned()),
+                ("status".to_owned(), reading.status.to_string()),
                 ("measuring time".to_owned(), reading.measuring_time.to_string()),
                 ("average dose rate".to_owned(), reading.average.to_string()),
                 (
                     "last-minute dose rate¹".to_owned(),
-                    format!("{} {}", reading.one_minute(), format_pulses(reading.last_minute_pulses)),
+                    format!("{} {}", reading.one_minute(), format_pulses(reading.last_minute)),
                 ),
                 ("battery sensor".to_owned(), reading.battery_sensor.to_string()),
             ]))
@@ -644,12 +655,12 @@ fn protocol_steps(steps: &mut Steps<World>) {
         "From each reply to the logging state query, the tool reads the logging duration, run started, record interval, records and checksum shown.",
         |_world: World, row: Row| {
             let reply = from_hex(&row["reply"]);
-            let state = reply_content(0x21, &reply)
+            let state = reply_content(Opcode::QueryLoggingState, &reply)
                 .and_then(LoggingState::decode)
                 .map_err(|error| HandlerError::new(error.to_string()))?;
             Ok(BTreeMap::from([
                 ("logging duration".to_owned(), state.duration.to_string()),
-                ("run started".to_owned(), state.started()),
+                ("run started".to_owned(), state.started.map_or_else(|| "unknown".to_owned(), |time| time.to_string())),
                 ("record interval".to_owned(), format!("{} minutes", state.interval_minutes)),
                 ("records".to_owned(), state.records.to_string()),
                 ("checksum".to_owned(), format!("{:02x}", state.checksum)),
@@ -671,7 +682,7 @@ fn protocol_steps(steps: &mut Steps<World>) {
         let records = dose_rates(&row["records"]);
         let mut download = Download::expecting(u16::try_from(records.len()).expect("a few records"));
         for record in records {
-            download.receive(&u16::try_from(record.hundredths).expect("a dose rate that fits in two bytes").to_le_bytes());
+            download.receive(&u16::try_from(record.hundredths()).expect("a dose rate that fits in two bytes").to_le_bytes());
         }
         Ok(row_with("checksum", format!("{:02x}", download.checksum())))
     });
@@ -681,12 +692,12 @@ fn protocol_steps(steps: &mut Steps<World>) {
             let number: usize = row["records"].parse().map_err(|_| HandlerError::new("A number of records is a number."))?;
             let mut device = FakeDevice::storing(ADDRESS).holding_records(&vec!["0.05".to_owned(); number]);
             let mut steps = Vec::new();
-            block_on(records(&mut device, &mut |done, total| steps.push(format!("{done} of {total}")))).map_err(HandlerError::new)?;
+            block_on(records(&mut device, &mut |done, total| steps.push(format!("{done} of {total}")))).map_err(failed)?;
             Ok(row_with("progress", if steps.is_empty() { "none".to_owned() } else { steps.join(", ") }))
         },
     );
     steps.sensor("Of the records the device holds, the tool keeps those shown.", |_world: World, row: Row| {
-        let state = block_on(logging_state(&mut FakeDevice::storing(ADDRESS))).map_err(HandlerError::new)?;
+        let state = block_on(logging_state(&mut FakeDevice::storing(ADDRESS))).map_err(failed)?;
         let kept: Vec<DoseRate> = Run::new(state, dose_rates(&row["device holds"])).records().map(|record| record.dose_rate).collect();
         Ok(row_with("tool keeps", listed(&kept)))
     });
@@ -695,7 +706,7 @@ fn protocol_steps(steps: &mut Steps<World>) {
         |_world: World, row: Row| {
             let state = [row["run started"].clone(), row["record interval"].clone()];
             let device = FakeDevice::storing(ADDRESS).reporting_logging_state(&["10 days".to_owned(), state[0].clone(), state[1].clone(), "0".to_owned()]);
-            let state = block_on(logging_state(&mut device.clone())).map_err(HandlerError::new)?;
+            let state = block_on(logging_state(&mut device.clone())).map_err(failed)?;
             let record = row["record"].parse().map_err(|_| HandlerError::new("A record is a number."))?;
             Ok(row_with("recorded at", state.recorded_at(record).to_string()))
         },
@@ -707,9 +718,12 @@ fn protocol_steps(steps: &mut Steps<World>) {
         let mut device = FakeDevice::storing(ADDRESS);
         let arguments: Vec<&str> = row["operation"].split_whitespace().collect();
         match arguments.as_slice() {
-            ["set-name", name] => block_on(set_name(&mut device, name)).map(drop).map_err(HandlerError::new)?,
-            ["logging"] => block_on(logging_state(&mut device)).map(drop).map_err(HandlerError::new)?,
-            ["read"] => block_on(read(&mut device)).map(drop).map_err(HandlerError::new)?,
+            ["set-name", name] => {
+                let label = DeviceLabel::new(*name).map_err(|error| HandlerError::new(error.to_string()))?;
+                block_on(set_name(&mut device, &label, &mut drop)).map(drop).map_err(failed)?;
+            }
+            ["logging"] => block_on(logging_state(&mut device)).map(drop).map_err(failed)?,
+            ["read"] => block_on(read(&mut device)).map(drop).map_err(failed)?,
             ["start", "--days", days] => {
                 let duration = days
                     .parse()
@@ -717,18 +731,16 @@ fn protocol_steps(steps: &mut Steps<World>) {
                     .and_then(LoggingDuration::of_run)
                     .ok_or_else(|| HandlerError::new("A run lasts from 1 to 31 days."))?;
                 device = FakeDevice::stopped(ADDRESS);
-                block_on(start(&mut device, duration, &FixedClock::showing(CLOCK), &mut |_| {}))
-                    .map(drop)
-                    .map_err(HandlerError::new)?;
+                block_on(start(&mut device, duration, &FixedClock::showing(CLOCK), &mut |_| {})).map(drop).map_err(failed)?;
             }
             ["start", "--no-logging"] => {
                 device = FakeDevice::stopped(ADDRESS);
                 block_on(start(&mut device, LoggingDuration::OFF, &FixedClock::showing(CLOCK), &mut |_| {}))
                     .map(drop)
-                    .map_err(HandlerError::new)?;
+                    .map_err(failed)?;
             }
-            ["stop"] => block_on(stop(&mut device)).map_err(HandlerError::new)?,
-            ["records"] => block_on(records(&mut device, &mut |_, _| {})).map(drop).map_err(HandlerError::new)?,
+            ["stop"] => block_on(stop(&mut device)).map_err(failed)?,
+            ["records"] => block_on(records(&mut device, &mut |_, _| {})).map(drop).map_err(failed)?,
             _ => return Err(HandlerError::new(format!("No binding for the operation {}.", row["operation"]))),
         };
         Ok(row_with("frames", frames(&device)))
