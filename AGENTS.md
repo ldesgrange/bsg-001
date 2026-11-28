@@ -62,8 +62,15 @@ If you cannot satisfy the oath, surface the disagreement instead of changing the
   Unit tests must use fakes/mocks and must not require Bluetooth hardware; mark hardware tests `#[ignore]` so they run only on explicit opt-in.
 - Identify BSG-001 devices from an advertised name beginning with `BLE_Gamma`.
   Each device has a random address that never changes, so the address selects a device once it has been discovered.
-- Develop behavior test-first.
-  Use value objects for domain concepts that need validation or behavior, but do not introduce wrappers without a purpose.
+
+## Engineering principles
+
+- Follow hexagonal architecture (ports and adapters): the domain is pure, the application defines ports, adapters implement them.
+- Work outside-in: BDD with Varar oaths for behaviour, then TDD with unit tests for the domain and application.
+- Keep it simple (KISS): prefer the plainest design that satisfies the oath, and do not build for hypothetical needs (YAGNI).
+- Don't repeat yourself (DRY): give each piece of knowledge one home, but tolerate duplication until the shared idea is clear.
+- Avoid primitive obsession: a domain concept never crosses a function signature as a bare `String`, integer or float.
+  Model it as a value object that validates on construction, so invalid values cannot exist (as `DeviceAddress`, `DoseRate` and `LoggingDuration` do).
 
 ## Protocol research
 
