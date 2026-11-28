@@ -1,4 +1,4 @@
-use bsg_001::domain::logging::{ClockTime, Download, LoggingState};
+use bsg_001::domain::logging::{ClockTime, Download, LoggingDuration, LoggingState};
 use bsg_001::domain::protocol::ProtocolError;
 
 /// A logging state of a ten-day run started at this clock time, recording every `interval` minutes.
@@ -27,6 +27,30 @@ fn rejects_a_time_that_is_not_real() {
     ] {
         assert!(ClockTime::new(2024, month, day, hour, minute, second).is_none());
     }
+}
+
+#[test]
+fn rejects_a_day_its_month_does_not_have() {
+    assert!(ClockTime::new(2024, 2, 29, 0, 0, 0).is_some());
+    assert!(ClockTime::new(2023, 2, 29, 0, 0, 0).is_none());
+    assert!(ClockTime::new(2024, 4, 31, 0, 0, 0).is_none());
+    assert!(ClockTime::new(2100, 2, 29, 0, 0, 0).is_none());
+    assert!(ClockTime::new(2000, 2, 29, 0, 0, 0).is_some());
+}
+
+#[test]
+fn a_run_records_for_1_to_31_days() {
+    assert!(LoggingDuration::of_run(0).is_none());
+    assert_eq!(LoggingDuration::of_run(1).unwrap().days(), 1);
+    assert_eq!(LoggingDuration::of_run(31).unwrap().days(), 31);
+    assert!(LoggingDuration::of_run(32).is_none());
+    assert_eq!(LoggingDuration::OFF.days(), 0);
+}
+
+#[test]
+fn rejects_a_logging_duration_no_run_has() {
+    assert_eq!(LoggingState::decode(&[32, 24, 1, 1, 0, 0, 0, 10, 3, 0, 0]), Err(ProtocolError::UnknownLoggingDuration));
+    assert_eq!(LoggingState::decode(&[0, 24, 1, 1, 0, 0, 0, 10, 3, 0, 0]).unwrap().duration, LoggingDuration::OFF);
 }
 
 #[test]

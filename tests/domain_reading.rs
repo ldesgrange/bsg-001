@@ -1,5 +1,5 @@
 use bsg_001::domain::protocol::ProtocolError;
-use bsg_001::domain::reading::{BatteryLevel, Reading};
+use bsg_001::domain::reading::{BatteryLevel, DoseRate, Reading};
 
 /// The content of a reading reply: status, measuring time, then the average, the last-minute units and the battery sensor.
 fn content(status: u8, units: u16, battery: u16) -> Vec<u8> {
@@ -50,4 +50,11 @@ fn maps_the_battery_sensor_to_the_levels_the_vendor_shows() {
     ] {
         assert_eq!(BatteryLevel::from_sensor(sensor).to_string(), level, "sensor {sensor}");
     }
+}
+
+#[test]
+fn a_dose_rate_is_shown_in_microsieverts_per_hour_with_two_decimals() {
+    assert_eq!(DoseRate::from_hundredths(5).to_string(), "0.05");
+    assert_eq!(DoseRate::from_hundredths(1234).to_string(), "12.34");
+    assert_eq!(DoseRate::from_hundredths(1234).hundredths(), 1234);
 }

@@ -302,7 +302,7 @@ fn dose_rates(list: &str) -> Vec<DoseRate> {
         return Vec::new();
     }
     let hundredths = |text: &str| text.replace('.', "").parse().expect("a dose rate with two decimal places");
-    list.split(", ").map(|text| DoseRate { hundredths: hundredths(text) }).collect()
+    list.split(", ").map(|text| DoseRate::from_hundredths(hundredths(text))).collect()
 }
 
 /// The frames written to a device, in order.
@@ -671,7 +671,7 @@ fn protocol_steps(steps: &mut Steps<World>) {
         let records = dose_rates(&row["records"]);
         let mut download = Download::expecting(u16::try_from(records.len()).expect("a few records"));
         for record in records {
-            download.receive(&u16::try_from(record.hundredths).expect("a dose rate that fits in two bytes").to_le_bytes());
+            download.receive(&u16::try_from(record.hundredths()).expect("a dose rate that fits in two bytes").to_le_bytes());
         }
         Ok(row_with("checksum", format!("{:02x}", download.checksum())))
     });

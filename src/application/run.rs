@@ -27,7 +27,7 @@ pub async fn start(transport: &mut impl DeviceTransport, duration: LoggingDurati
     }
     let now = clock.now().ok_or("The clock of the computer shows a time the device cannot hold.")?;
     transport.write(&command_frame(SET_CLOCK, &now.bytes())).await?;
-    transport.write(&command_frame(START_STOP, &[START, duration.days])).await?;
+    transport.write(&command_frame(START_STOP, &[START, duration.days()])).await?;
     let measuring = read(transport).await?.measuring;
     let state = logging_state(transport).await?;
     if measuring && state.duration == duration {
@@ -44,7 +44,7 @@ pub async fn stop(transport: &mut impl DeviceTransport) -> Result<(), String> {
     }
     // The logging duration the device already has is sent back, so that stopping leaves it as it is.
     let duration = logging_state(transport).await?.duration;
-    transport.write(&command_frame(START_STOP, &[STOP, duration.days])).await?;
+    transport.write(&command_frame(START_STOP, &[STOP, duration.days()])).await?;
     if read(transport).await?.measuring {
         Err("The device did not stop.".to_owned())
     } else {

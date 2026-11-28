@@ -7,10 +7,10 @@ use crate::domain::protocol::{ProtocolError, decode_number};
 /// How long the device has been measuring.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MeasuringTime {
-    pub days: u8,
-    pub hours: u8,
-    pub minutes: u8,
-    pub seconds: u8,
+    days: u8,
+    hours: u8,
+    minutes: u8,
+    seconds: u8,
 }
 
 impl Display for MeasuringTime {
@@ -22,7 +22,17 @@ impl Display for MeasuringTime {
 /// A dose rate, in hundredths of a microsievert per hour.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DoseRate {
-    pub hundredths: u32,
+    hundredths: u32,
+}
+
+impl DoseRate {
+    pub fn from_hundredths(hundredths: u32) -> Self {
+        Self { hundredths }
+    }
+
+    pub fn hundredths(self) -> u32 {
+        self.hundredths
+    }
 }
 
 impl Display for DoseRate {
@@ -96,9 +106,7 @@ impl Reading {
                 minutes: *minutes,
                 seconds: *seconds,
             },
-            average: DoseRate {
-                hundredths: u32::from(number(0)?),
-            },
+            average: DoseRate::from_hundredths(u32::from(number(0)?)),
             last_minute_pulses: pulses(number(2)?),
             battery_sensor: number(4)?,
         })
@@ -106,9 +114,7 @@ impl Reading {
 
     /// The dose rate over the last completed minute, where one pulse amounts to 0.50 µSv/h.
     pub fn one_minute(&self) -> DoseRate {
-        DoseRate {
-            hundredths: u32::from(self.last_minute_pulses) * 50,
-        }
+        DoseRate::from_hundredths(u32::from(self.last_minute_pulses) * 50)
     }
 
     pub fn battery_level(&self) -> BatteryLevel {

@@ -8,7 +8,7 @@ use crate::domain::reading::DoseRate;
 /// How many days a run records for; zero days means the device measures without recording.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LoggingDuration {
-    pub days: u8,
+    days: u8,
 }
 
 impl LoggingDuration {
@@ -18,6 +18,15 @@ impl LoggingDuration {
     /// The duration of a run that records, which lasts from 1 to 31 days.
     pub fn of_run(days: u8) -> Option<Self> {
         (1..=31).contains(&days).then_some(Self { days })
+    }
+
+    /// The duration of a run, or measuring without recording for zero days.
+    fn of_days(days: u8) -> Option<Self> {
+        if days == 0 { Some(Self::OFF) } else { Self::of_run(days) }
+    }
+
+    pub fn days(self) -> u8 {
+        self.days
     }
 
     /// How often a run of this duration records: the device keeps room for the whole run.
@@ -71,9 +80,10 @@ impl ClockTime {
     /// Read the six bytes of a clock time, or nothing when they do not hold a real date and time.
     fn decode(bytes: [u8; 6]) -> Option<Self> {
         let [year, month, day, hour, minute, second] = bytes;
-        let real = (1..=12).contains(&month) && (1..=31).contains(&day) && hour < 24 && minute < 60 && second < 60;
+        let year = 2000 + u16::from(year);
+        let real = (1..=12).contains(&month) && (1..=days_in_month(year, month)).contains(&day) && hour < 24 && minute < 60 && second < 60;
         real.then_some(Self {
-            year: 2000 + u16::from(year),
+            year,
             month,
             day,
             hour,
@@ -101,6 +111,16 @@ impl ClockTime {
             minute: u8::try_from(minute_of_day % 60).expect("a minute of the hour"),
             second: self.second,
         }
+    }
+}
+
+/// How many days a month of the Gregorian calendar has.
+fn days_in_month(year: u16, month: u8) -> u8 {
+    match month {
+        2 if year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400)) => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
     }
 }
 
@@ -162,7 +182,7 @@ impl LoggingState {
             return Err(ProtocolError::TruncatedLoggingState);
         };
         Ok(Self {
-            duration: LoggingDuration { days: *days },
+            duration: LoggingDuration::of_days(*days).ok_or(ProtocolError::UnknownLoggingDuration)?,
             started: ClockTime::decode([*year, *month, *day, *hour, *minute, *second]),
             // The device can report no interval at all, which stands for ten minutes.
             interval_minutes: if *interval == 0 { 10 } else { *interval },
@@ -240,9 +260,7 @@ impl Download {
             self.checksum = self.checksum.wrapping_add(*byte);
             match self.half_record.take() {
                 None => self.half_record = Some(*byte),
-                Some(low) => self.dose_rates.push(DoseRate {
-                    hundredths: u32::from(u16::from_le_bytes([low, *byte])),
-                }),
+                Some(low) => self.dose_rates.push(DoseRate::from_hundredths(u32::from(u16::from_le_bytes([low, *byte])))),
             }
         }
     }

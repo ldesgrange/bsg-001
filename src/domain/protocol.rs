@@ -12,6 +12,7 @@ pub enum ProtocolError {
     TruncatedNumber,
     TruncatedReading,
     TruncatedLoggingState,
+    UnknownLoggingDuration,
     TruncatedRecords,
     UnknownStatus,
 }
@@ -26,6 +27,7 @@ impl Display for ProtocolError {
             Self::TruncatedNumber => "The content stops before the number does.",
             Self::TruncatedReading => "The content stops before the reading does.",
             Self::TruncatedLoggingState => "The content stops before the logging state does.",
+            Self::UnknownLoggingDuration => "The logging duration is neither off nor from 1 to 31 days.",
             Self::TruncatedRecords => "The packets stop before the records do.",
             Self::UnknownStatus => "The status is neither measuring nor stopped.",
         };
