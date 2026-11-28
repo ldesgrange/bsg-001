@@ -10,11 +10,11 @@ use crate::application::logging::logging_state;
 use crate::application::read::read;
 use crate::application::records::records;
 use crate::application::run::{start, stop};
-use crate::application::set_name::{set_name, validate_name};
+use crate::application::set_name::set_name;
 use crate::application::{Clock, DeviceConnector, DeviceScanner, DeviceTransport, DiscoveryError, discover_devices};
 use crate::domain::logging::{ClockTime, LoggingDuration, LoggingState, RecordTime, Run};
 use crate::domain::reading::Reading;
-use crate::domain::{DeviceAddress, DeviceInfo, DeviceValidationError};
+use crate::domain::{DeviceAddress, DeviceInfo, DeviceLabel, DeviceValidationError};
 
 #[derive(Parser)]
 #[command(name = "bsg-001", about = "Tools for the FTLab Wireless Smart Geiger BSG-001.")]
@@ -240,11 +240,11 @@ pub async fn run(
             .await
             .map(|run| format_records(&run, format)),
         },
-        Command::SetName { address, name } => match (given(address), validate_name(&name)) {
+        Command::SetName { address, name } => match (given(address), DeviceLabel::new(name).map_err(|error| error.to_string())) {
             (Err(error), _) | (_, Err(error)) => Err(error),
-            (Ok(address), Ok(())) => {
+            (Ok(address), Ok(label)) => {
                 let _ = writeln!(stderr, "Warning: renaming during logging may reset the measuring-time counter.");
-                with_device(connector, &address, async |device| set_name(device, &name).await)
+                with_device(connector, &address, async |device| set_name(device, &label).await)
                     .await
                     .map(|confirmed| Printed::Result(format!("Confirmed name: {confirmed}. Power-cycle the device to update its advertised name.")))
             }

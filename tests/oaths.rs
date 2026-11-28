@@ -22,11 +22,11 @@ use bsg_001::application::logging::logging_state;
 use bsg_001::application::read::read;
 use bsg_001::application::records::records;
 use bsg_001::application::run::{start, stop};
-use bsg_001::application::set_name::{set_name, validate_name};
+use bsg_001::application::set_name::set_name;
 use bsg_001::domain::logging::{Download, LoggingDuration, LoggingState, Run};
 use bsg_001::domain::protocol::{command_frame, decode_number, decode_text, encode_text, reply_content};
 use bsg_001::domain::reading::{BatteryLevel, DoseRate, Reading};
-use bsg_001::{Clock, DeviceConnector, DeviceInfo, DeviceScanner, discover_devices};
+use bsg_001::{Clock, DeviceConnector, DeviceInfo, DeviceLabel, DeviceScanner, discover_devices};
 use clap::{CommandFactory, Parser};
 #[path = "support/fakes.rs"]
 mod fakes;
@@ -182,13 +182,13 @@ fn run_on_hardware(world: &World, arguments: &[&str]) -> Result<Attempt, Handler
         })
         .collect();
     let arguments: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    let renames = matches!(arguments.as_slice(), [COMMAND, "set-name", "--address", _, name] if validate_name(name).is_ok());
+    let renames = matches!(arguments.as_slice(), [COMMAND, "set-name", "--address", _, name] if DeviceLabel::new(*name).is_ok());
     if !renames {
         return Ok(Attempt::Ran(session(parse(&arguments)?, &BtleplugDeviceScanner::new(), &BluetoothConnector, &SystemClock)));
     }
     // The advertised label is the name the device had when it was switched on, which is what is put back.
     let original = advertised.strip_prefix(NAME_PREFIX).unwrap_or_default();
-    if validate_name(original).is_err() {
+    if DeviceLabel::new(original).is_err() {
         return Err(HandlerError::new(
             "The advertised label of the real device is not a valid name, so it could not be put back.",
         ));
@@ -285,7 +285,7 @@ fn shape(session: &str) -> String {
 }
 
 fn is_ordinary_name(name: &str) -> bool {
-    name.strip_prefix(NAME_PREFIX).is_some_and(|label| validate_name(label).is_ok())
+    name.strip_prefix(NAME_PREFIX).is_some_and(|label| DeviceLabel::new(label).is_ok())
 }
 
 /// Dose rates as a list, or `none` when there are none.
@@ -707,7 +707,10 @@ fn protocol_steps(steps: &mut Steps<World>) {
         let mut device = FakeDevice::storing(ADDRESS);
         let arguments: Vec<&str> = row["operation"].split_whitespace().collect();
         match arguments.as_slice() {
-            ["set-name", name] => block_on(set_name(&mut device, name)).map(drop).map_err(HandlerError::new)?,
+            ["set-name", name] => {
+                let label = DeviceLabel::new(*name).map_err(|error| HandlerError::new(error.to_string()))?;
+                block_on(set_name(&mut device, &label)).map(drop).map_err(HandlerError::new)?;
+            }
             ["logging"] => block_on(logging_state(&mut device)).map(drop).map_err(HandlerError::new)?,
             ["read"] => block_on(read(&mut device)).map(drop).map_err(HandlerError::new)?,
             ["start", "--days", days] => {

@@ -9,6 +9,7 @@ pub enum DeviceValidationError {
     /// An address made only of zeros, which belongs to no device.
     ZeroAddress(String),
     EmptyName,
+    InvalidLabel,
     RssiOutOfRange,
 }
 
@@ -18,6 +19,7 @@ impl Display for DeviceValidationError {
             Self::ZeroAddress(address) => return write!(formatter, "{address} is not the address of a device."),
             Self::EmptyAddress => "A Bluetooth device address cannot be empty.",
             Self::EmptyName => "An advertised device name cannot be empty.",
+            Self::InvalidLabel => "The name must contain exactly four ASCII letters or digits.",
             Self::RssiOutOfRange => "A Bluetooth RSSI must be between -127 and 20 dBm.",
         };
         formatter.write_str(message)
@@ -69,6 +71,32 @@ impl DeviceName {
 }
 
 impl Display for DeviceName {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+/// The name a device is given: the label that follows `BLE_Gamma:` in the name it advertises.
+///
+/// It has exactly four characters, each an ASCII letter or digit.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeviceLabel(String);
+
+impl DeviceLabel {
+    pub fn new(value: impl Into<String>) -> Result<Self, DeviceValidationError> {
+        let value = value.into();
+        if value.len() != 4 || !value.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+            return Err(DeviceValidationError::InvalidLabel);
+        }
+        Ok(Self(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Display for DeviceLabel {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         self.0.fmt(formatter)
     }
