@@ -83,7 +83,7 @@ impl Reading {
         let [status, days, hours, minutes, seconds, numbers @ ..] = content else {
             return Err(ProtocolError::TruncatedReading);
         };
-        let number = |offset: usize| numbers.get(offset..).ok_or(ProtocolError::TruncatedReading).and_then(decode_number);
+        let number = |offset: usize| numbers.get(offset..).and_then(|rest| decode_number(rest).ok()).ok_or(ProtocolError::TruncatedReading);
         Ok(Self {
             measuring: match status {
                 0 => false,
