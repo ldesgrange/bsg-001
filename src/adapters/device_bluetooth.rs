@@ -9,7 +9,7 @@ use futures_util::{Stream, StreamExt};
 use uuid::Uuid;
 
 use crate::adapters::bluetooth::{first_adapter, scan};
-use crate::application::{DeviceConnector, DeviceTransport};
+use crate::application::{DeviceConnector, DeviceTransport, PortError};
 use crate::domain::DeviceAddress;
 use crate::domain::protocol::Opcode;
 
@@ -31,18 +31,15 @@ pub struct BluetoothTransport {
 }
 
 impl DeviceTransport for BluetoothTransport {
-    async fn write(&mut self, message: &[u8]) -> Result<(), String> {
-        self.peripheral
-            .write(&self.command, message, WriteType::WithResponse)
-            .await
-            .map_err(|error| error.to_string())
+    async fn write(&mut self, message: &[u8]) -> Result<(), PortError> {
+        Ok(self.peripheral.write(&self.command, message, WriteType::WithResponse).await?)
     }
 
-    async fn receive(&mut self, query: Opcode) -> Result<Vec<u8>, String> {
+    async fn receive(&mut self, query: Opcode) -> Result<Vec<u8>, PortError> {
         receive_matching(&mut self.notifications, self.measurement.uuid, query.byte(), REPLY_TIMEOUT).await
     }
 
-    async fn receive_records_packet(&mut self, more_expected: bool) -> Result<Option<Vec<u8>>, String> {
+    async fn receive_records_packet(&mut self, more_expected: bool) -> Result<Option<Vec<u8>>, PortError> {
         let wait = if more_expected { REPLY_TIMEOUT } else { DOWNLOAD_SILENCE };
         match receive_packet(&mut self.notifications, self.log.uuid, wait).await {
             Err(error) if more_expected => Err(error),
@@ -50,19 +47,19 @@ impl DeviceTransport for BluetoothTransport {
         }
     }
 
-    async fn disconnect(&mut self) -> Result<(), String> {
-        self.peripheral.disconnect().await.map_err(|error| error.to_string())
+    async fn disconnect(&mut self) -> Result<(), PortError> {
+        Ok(self.peripheral.disconnect().await?)
     }
 }
 
 /// Wait for the reply to the query with this opcode, skipping every other notification.
-async fn receive_matching(notifications: &mut (impl Stream<Item = ValueNotification> + Unpin), characteristic: Uuid, opcode: u8, timeout: Duration) -> Result<Vec<u8>, String> {
+async fn receive_matching(notifications: &mut (impl Stream<Item = ValueNotification> + Unpin), characteristic: Uuid, opcode: u8, timeout: Duration) -> Result<Vec<u8>, PortError> {
     let reply = |notification: &ValueNotification| notification.uuid == characteristic && notification.value.first() == Some(&opcode);
     receive_where(notifications, timeout, "Timed out waiting for a device reply.", reply).await
 }
 
 /// Wait for the next packet of one characteristic, skipping those of the others.
-async fn receive_packet(notifications: &mut (impl Stream<Item = ValueNotification> + Unpin), characteristic: Uuid, timeout: Duration) -> Result<Vec<u8>, String> {
+async fn receive_packet(notifications: &mut (impl Stream<Item = ValueNotification> + Unpin), characteristic: Uuid, timeout: Duration) -> Result<Vec<u8>, PortError> {
     let packet = |notification: &ValueNotification| notification.uuid == characteristic;
     receive_where(notifications, timeout, "Timed out waiting for the records.", packet).await
 }
@@ -73,30 +70,30 @@ async fn receive_where(
     timeout: Duration,
     timed_out: &str,
     wanted: impl Fn(&ValueNotification) -> bool,
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>, PortError> {
     tokio::time::timeout(timeout, async {
         while let Some(notification) = notifications.next().await {
             if wanted(&notification) {
                 return Ok(notification.value);
             }
         }
-        Err("Notification stream closed.".to_owned())
+        Err("Notification stream closed.".into())
     })
     .await
-    .map_err(|_| timed_out.to_owned())?
+    .map_err(|_| PortError::from(timed_out))?
 }
 
 fn has_address(device: &Peripheral, address: &str) -> bool {
     device.address().to_string().eq_ignore_ascii_case(address)
 }
 
-async fn find_known(adapter: &Adapter, address: &str) -> Result<Option<Peripheral>, String> {
-    let devices = adapter.peripherals().await.map_err(|error| error.to_string())?;
+async fn find_known(adapter: &Adapter, address: &str) -> Result<Option<Peripheral>, PortError> {
+    let devices = adapter.peripherals().await?;
     Ok(devices.into_iter().find(|device| has_address(device, address)))
 }
 
-async fn connect_peripheral(address: &str) -> Result<Peripheral, String> {
-    let adapter = first_adapter().await.map_err(|error| error.to_string())?;
+async fn connect_peripheral(address: &str) -> Result<Peripheral, PortError> {
+    let adapter = first_adapter().await?;
     if let Some(device) = find_known(&adapter, address).await?
         && device.connect().await.is_ok()
     {
@@ -104,19 +101,18 @@ async fn connect_peripheral(address: &str) -> Result<Peripheral, String> {
     }
     // The scan stops as soon as the device is seen; the allowance covers a device that advertises slowly.
     let device = scan(&adapter, CONNECT_SCAN, |device| has_address(device, address))
-        .await
-        .map_err(|error| error.to_string())?
+        .await?
         .into_iter()
         .map(|sighting| sighting.peripheral)
         .find(|device| has_address(device, address))
         .ok_or_else(|| format!("Device {address} was not found."))?;
-    device.connect().await.map_err(|error| error.to_string())?;
+    device.connect().await?;
     Ok(device)
 }
 
 /// Find the characteristics of the device and subscribe to its replies and its records.
-async fn open(peripheral: &Peripheral) -> Result<BluetoothTransport, String> {
-    peripheral.discover_services().await.map_err(|error| error.to_string())?;
+async fn open(peripheral: &Peripheral) -> Result<BluetoothTransport, PortError> {
+    peripheral.discover_services().await?;
     let service = peripheral
         .services()
         .into_iter()
@@ -128,14 +124,14 @@ async fn open(peripheral: &Peripheral) -> Result<BluetoothTransport, String> {
             .iter()
             .find(|characteristic| characteristic.uuid == uuid)
             .cloned()
-            .ok_or_else(|| missing.to_owned())
+            .ok_or_else(|| PortError::from(missing))
     };
     let command = characteristic(COMMAND, "Command characteristic not found.")?;
     let measurement = characteristic(MEASUREMENT, "Measurement characteristic not found.")?;
     let log = characteristic(LOG, "Log characteristic not found.")?;
-    let notifications = peripheral.notifications().await.map_err(|error| error.to_string())?;
-    peripheral.subscribe(&measurement).await.map_err(|error| error.to_string())?;
-    peripheral.subscribe(&log).await.map_err(|error| error.to_string())?;
+    let notifications = peripheral.notifications().await?;
+    peripheral.subscribe(&measurement).await?;
+    peripheral.subscribe(&log).await?;
     Ok(BluetoothTransport {
         peripheral: peripheral.clone(),
         command,
@@ -151,7 +147,7 @@ pub struct BluetoothConnector;
 impl DeviceConnector for BluetoothConnector {
     type Transport = BluetoothTransport;
 
-    async fn connect(&self, address: &DeviceAddress) -> Result<BluetoothTransport, String> {
+    async fn connect(&self, address: &DeviceAddress) -> Result<BluetoothTransport, PortError> {
         let peripheral = connect_peripheral(&address.to_string()).await?;
         match open(&peripheral).await {
             Ok(transport) => Ok(transport),

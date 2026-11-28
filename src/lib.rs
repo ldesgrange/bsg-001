@@ -4,5 +4,5 @@ pub mod adapters;
 pub mod application;
 pub mod domain;
 
-pub use application::{Clock, DeviceConnector, DeviceScanner, DeviceTransport, DiscoveryError, ScannerError, discover_devices};
+pub use application::{Clock, DeviceConnector, DeviceScanner, DeviceTransport, DiscoveryError, OperationError, PortError, discover_devices};
 pub use domain::{DeviceAddress, DeviceInfo, DeviceLabel, DeviceName, DeviceValidationError, Rssi};

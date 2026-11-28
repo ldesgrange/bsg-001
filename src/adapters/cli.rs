@@ -11,7 +11,7 @@ use crate::application::read::read;
 use crate::application::records::records;
 use crate::application::run::{start, stop};
 use crate::application::set_name::set_name;
-use crate::application::{Clock, DeviceConnector, DeviceScanner, DeviceTransport, DiscoveryError, discover_devices};
+use crate::application::{Clock, DeviceConnector, DeviceScanner, DeviceTransport, DiscoveryError, OperationError, PortError, discover_devices};
 use crate::domain::logging::{ClockTime, LoggingDuration, LoggingState, RecordTime, Run};
 use crate::domain::reading::{Pulses, Reading};
 use crate::domain::{DeviceAddress, DeviceInfo, DeviceLabel, DeviceValidationError};
@@ -293,17 +293,21 @@ pub async fn run(
 }
 
 /// Give the outcome of an operation once the device is disconnected, preferring the operation's own error.
-fn after_disconnecting<T>(result: Result<T, String>, disconnected: Result<(), String>) -> Result<T, String> {
+fn after_disconnecting<T>(result: Result<T, OperationError>, disconnected: Result<(), PortError>) -> Result<T, OperationError> {
     let value = result?;
     disconnected?;
     Ok(value)
 }
 
 /// Connect to the device, run an operation over the connection, and disconnect whatever the outcome.
-async fn with_device<C: DeviceConnector, T>(connector: &C, address: &DeviceAddress, operation: impl AsyncFnOnce(&mut C::Transport) -> Result<T, String>) -> Result<T, String> {
-    let mut device = connector.connect(address).await?;
+async fn with_device<C: DeviceConnector, T>(
+    connector: &C,
+    address: &DeviceAddress,
+    operation: impl AsyncFnOnce(&mut C::Transport) -> Result<T, OperationError>,
+) -> Result<T, String> {
+    let mut device = connector.connect(address).await.map_err(|error| error.to_string())?;
     let result = operation(&mut device).await;
-    after_disconnecting(result, device.disconnect().await)
+    after_disconnecting(result, device.disconnect().await).map_err(|error| error.to_string())
 }
 
 /// What a run that has just started is doing, from the logging state the device reports.

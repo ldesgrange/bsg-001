@@ -10,7 +10,7 @@ use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral as _, Periph
 use btleplug::platform::{Adapter, Manager, Peripheral};
 use futures_util::StreamExt;
 
-use crate::application::{DeviceScanner, ScannerError};
+use crate::application::{DeviceScanner, PortError};
 use crate::domain::{DeviceAddress, DeviceInfo, DeviceName, DeviceValidationError, Rssi};
 
 #[derive(Default)]
@@ -42,7 +42,7 @@ pub fn device_info_from_advertisement(address: impl Into<String>, local_name: Op
     ))
 }
 
-pub(crate) async fn first_adapter() -> Result<Adapter, ScannerError> {
+pub(crate) async fn first_adapter() -> Result<Adapter, PortError> {
     let manager = Manager::new().await?;
     Ok(manager.adapters().await?.into_iter().next().ok_or(NoBluetoothAdapter)?)
 }
@@ -88,7 +88,7 @@ pub(crate) struct Sighting {
 
 /// Scan for up to `duration` and return only the peripherals that advertised during the scan.
 /// The scan ends early once `stop_when` accepts a peripheral.
-pub(crate) async fn scan(adapter: &Adapter, duration: Duration, mut stop_when: impl FnMut(&Peripheral) -> bool) -> Result<Vec<Sighting>, ScannerError> {
+pub(crate) async fn scan(adapter: &Adapter, duration: Duration, mut stop_when: impl FnMut(&Peripheral) -> bool) -> Result<Vec<Sighting>, PortError> {
     // On Linux the events begin with every peripheral the stack remembers, whether or not it is still there.
     let remembered = adapter.peripherals().await?.iter().map(Peripheral::id).collect::<Vec<_>>();
     let mut sightings = LiveSightings::remembering(remembered);
@@ -130,7 +130,7 @@ pub(crate) async fn scan(adapter: &Adapter, duration: Duration, mut stop_when: i
                 },
             }
         }
-        Ok::<_, ScannerError>(())
+        Ok::<_, PortError>(())
     }
     .await;
     // Properties are read before the scan stops, because the signal strength is forgotten once it has.
@@ -148,7 +148,7 @@ pub(crate) async fn scan(adapter: &Adapter, duration: Duration, mut stop_when: i
 }
 
 impl DeviceScanner for BtleplugDeviceScanner {
-    async fn discover(&self, scan_duration: Duration) -> Result<Vec<DeviceInfo>, ScannerError> {
+    async fn discover(&self, scan_duration: Duration) -> Result<Vec<DeviceInfo>, PortError> {
         let adapter = first_adapter().await?;
         let mut devices = Vec::new();
         for sighting in scan(&adapter, scan_duration, |_| false).await? {

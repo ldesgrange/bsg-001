@@ -26,7 +26,7 @@ use bsg_001::application::set_name::set_name;
 use bsg_001::domain::logging::{Download, LoggingDuration, LoggingState, Run};
 use bsg_001::domain::protocol::{Opcode, command_frame, decode_number, decode_text, encode_text, reply_content};
 use bsg_001::domain::reading::{BatteryLevel, DoseRate, Reading};
-use bsg_001::{Clock, DeviceConnector, DeviceInfo, DeviceLabel, DeviceScanner, discover_devices};
+use bsg_001::{Clock, DeviceConnector, DeviceInfo, DeviceLabel, DeviceScanner, OperationError, discover_devices};
 use clap::{CommandFactory, Parser};
 #[path = "support/fakes.rs"]
 mod fakes;
@@ -600,6 +600,11 @@ fn tool_steps(steps: &mut Steps<World>) {
     });
 }
 
+/// An example that failed because the operation did.
+fn failed(error: OperationError) -> HandlerError {
+    HandlerError::new(error.to_string())
+}
+
 /// The opcode written in hexadecimal, such as `31`.
 fn opcode(hex: &str) -> Opcode {
     u8::from_str_radix(hex, 16).ok().and_then(Opcode::from_byte).expect("the opcode of an operation")
@@ -686,12 +691,12 @@ fn protocol_steps(steps: &mut Steps<World>) {
             let number: usize = row["records"].parse().map_err(|_| HandlerError::new("A number of records is a number."))?;
             let mut device = FakeDevice::storing(ADDRESS).holding_records(&vec!["0.05".to_owned(); number]);
             let mut steps = Vec::new();
-            block_on(records(&mut device, &mut |done, total| steps.push(format!("{done} of {total}")))).map_err(HandlerError::new)?;
+            block_on(records(&mut device, &mut |done, total| steps.push(format!("{done} of {total}")))).map_err(failed)?;
             Ok(row_with("progress", if steps.is_empty() { "none".to_owned() } else { steps.join(", ") }))
         },
     );
     steps.sensor("Of the records the device holds, the tool keeps those shown.", |_world: World, row: Row| {
-        let state = block_on(logging_state(&mut FakeDevice::storing(ADDRESS))).map_err(HandlerError::new)?;
+        let state = block_on(logging_state(&mut FakeDevice::storing(ADDRESS))).map_err(failed)?;
         let kept: Vec<DoseRate> = Run::new(state, dose_rates(&row["device holds"])).records().map(|record| record.dose_rate).collect();
         Ok(row_with("tool keeps", listed(&kept)))
     });
@@ -700,7 +705,7 @@ fn protocol_steps(steps: &mut Steps<World>) {
         |_world: World, row: Row| {
             let state = [row["run started"].clone(), row["record interval"].clone()];
             let device = FakeDevice::storing(ADDRESS).reporting_logging_state(&["10 days".to_owned(), state[0].clone(), state[1].clone(), "0".to_owned()]);
-            let state = block_on(logging_state(&mut device.clone())).map_err(HandlerError::new)?;
+            let state = block_on(logging_state(&mut device.clone())).map_err(failed)?;
             let record = row["record"].parse().map_err(|_| HandlerError::new("A record is a number."))?;
             Ok(row_with("recorded at", state.recorded_at(record).to_string()))
         },
@@ -714,10 +719,10 @@ fn protocol_steps(steps: &mut Steps<World>) {
         match arguments.as_slice() {
             ["set-name", name] => {
                 let label = DeviceLabel::new(*name).map_err(|error| HandlerError::new(error.to_string()))?;
-                block_on(set_name(&mut device, &label)).map(drop).map_err(HandlerError::new)?;
+                block_on(set_name(&mut device, &label)).map(drop).map_err(failed)?;
             }
-            ["logging"] => block_on(logging_state(&mut device)).map(drop).map_err(HandlerError::new)?,
-            ["read"] => block_on(read(&mut device)).map(drop).map_err(HandlerError::new)?,
+            ["logging"] => block_on(logging_state(&mut device)).map(drop).map_err(failed)?,
+            ["read"] => block_on(read(&mut device)).map(drop).map_err(failed)?,
             ["start", "--days", days] => {
                 let duration = days
                     .parse()
@@ -725,18 +730,16 @@ fn protocol_steps(steps: &mut Steps<World>) {
                     .and_then(LoggingDuration::of_run)
                     .ok_or_else(|| HandlerError::new("A run lasts from 1 to 31 days."))?;
                 device = FakeDevice::stopped(ADDRESS);
-                block_on(start(&mut device, duration, &FixedClock::showing(CLOCK), &mut |_| {}))
-                    .map(drop)
-                    .map_err(HandlerError::new)?;
+                block_on(start(&mut device, duration, &FixedClock::showing(CLOCK), &mut |_| {})).map(drop).map_err(failed)?;
             }
             ["start", "--no-logging"] => {
                 device = FakeDevice::stopped(ADDRESS);
                 block_on(start(&mut device, LoggingDuration::OFF, &FixedClock::showing(CLOCK), &mut |_| {}))
                     .map(drop)
-                    .map_err(HandlerError::new)?;
+                    .map_err(failed)?;
             }
-            ["stop"] => block_on(stop(&mut device)).map_err(HandlerError::new)?,
-            ["records"] => block_on(records(&mut device, &mut |_, _| {})).map(drop).map_err(HandlerError::new)?,
+            ["stop"] => block_on(stop(&mut device)).map_err(failed)?,
+            ["records"] => block_on(records(&mut device, &mut |_, _| {})).map(drop).map_err(failed)?,
             _ => return Err(HandlerError::new(format!("No binding for the operation {}.", row["operation"]))),
         };
         Ok(row_with("frames", frames(&device)))

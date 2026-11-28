@@ -1,5 +1,6 @@
 //! Starting and stopping a run.
 
+use crate::application::OperationError;
 use crate::application::logging::logging_state;
 use crate::application::ports::{Clock, DeviceTransport};
 use crate::application::read::read;
@@ -14,16 +15,16 @@ const STOP: u8 = 0;
 /// The device's clock is set first, because the device stamps the start of the run with it.
 /// The time is read from `clock` just before it is sent, so that reaching the device does not make the stamp early.
 /// `warn` is told, before the run starts, about the records that starting erases.
-pub async fn start(transport: &mut impl DeviceTransport, duration: LoggingDuration, clock: &impl Clock, warn: &mut impl FnMut(String)) -> Result<LoggingState, String> {
+pub async fn start(transport: &mut impl DeviceTransport, duration: LoggingDuration, clock: &impl Clock, warn: &mut impl FnMut(String)) -> Result<LoggingState, OperationError> {
     if read(transport).await?.is_measuring() {
-        return Err("The device is already measuring.".to_owned());
+        return Err(OperationError::AlreadyMeasuring);
     }
     match logging_state(transport).await?.records {
         0 => {}
         1 => warn("starting a run erases the 1 record the device holds.".to_owned()),
         records => warn(format!("starting a run erases the {records} records the device holds.")),
     }
-    let now = clock.now().ok_or("The clock of the computer shows a time the device cannot hold.")?;
+    let now = clock.now().ok_or(OperationError::ClockOutOfRange)?;
     transport.write(&command_frame(Opcode::SetClock, &now.bytes())).await?;
     transport.write(&command_frame(Opcode::StartStop, &[START, duration.days()])).await?;
     let measuring = read(transport).await?.is_measuring();
@@ -31,20 +32,20 @@ pub async fn start(transport: &mut impl DeviceTransport, duration: LoggingDurati
     if measuring && state.duration == duration {
         Ok(state)
     } else {
-        Err("The device did not start.".to_owned())
+        Err(OperationError::DidNotStart)
     }
 }
 
 /// Stop the run in progress.
-pub async fn stop(transport: &mut impl DeviceTransport) -> Result<(), String> {
+pub async fn stop(transport: &mut impl DeviceTransport) -> Result<(), OperationError> {
     if !read(transport).await?.is_measuring() {
-        return Err("The device is already stopped.".to_owned());
+        return Err(OperationError::AlreadyStopped);
     }
     // The logging duration the device already has is sent back, so that stopping leaves it as it is.
     let duration = logging_state(transport).await?.duration;
     transport.write(&command_frame(Opcode::StartStop, &[STOP, duration.days()])).await?;
     if read(transport).await?.is_measuring() {
-        Err("The device did not stop.".to_owned())
+        Err(OperationError::DidNotStop)
     } else {
         Ok(())
     }

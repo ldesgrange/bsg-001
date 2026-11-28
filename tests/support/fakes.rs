@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use bsg_001::domain::logging::ClockTime;
 use bsg_001::domain::protocol::Opcode;
-use bsg_001::{Clock, DeviceAddress, DeviceConnector, DeviceInfo, DeviceScanner, DeviceTransport};
+use bsg_001::{Clock, DeviceAddress, DeviceConnector, DeviceInfo, DeviceScanner, DeviceTransport, PortError};
 
 const REPLY_LENGTH: usize = 20;
 const SET_NAME: u8 = Opcode::SetName.byte();
@@ -69,7 +69,7 @@ impl FakeScanner {
 }
 
 impl DeviceScanner for FakeScanner {
-    async fn discover(&self, scan_duration: Duration) -> Result<Vec<DeviceInfo>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn discover(&self, scan_duration: Duration) -> Result<Vec<DeviceInfo>, PortError> {
         self.calls.set(self.calls.get() + 1);
         self.scan_duration.set(Some(scan_duration));
         Ok(self.devices.clone())
@@ -276,7 +276,7 @@ impl FakeDevice {
 }
 
 impl DeviceTransport for FakeDevice {
-    async fn write(&mut self, message: &[u8]) -> Result<(), String> {
+    async fn write(&mut self, message: &[u8]) -> Result<(), PortError> {
         self.writes.borrow_mut().push(message.to_vec());
         if message.first() == Some(&SET_NAME) && !self.keeps_name {
             self.stored = message[3..3 + usize::from(message[2])].to_vec();
@@ -309,7 +309,7 @@ impl DeviceTransport for FakeDevice {
         Ok(())
     }
 
-    async fn receive(&mut self, query: Opcode) -> Result<Vec<u8>, String> {
+    async fn receive(&mut self, query: Opcode) -> Result<Vec<u8>, PortError> {
         if let Some(reply) = self.replies.get(&query) {
             return Ok(reply.clone());
         }
@@ -319,14 +319,14 @@ impl DeviceTransport for FakeDevice {
         Ok(reply(Opcode::QueryName, &content))
     }
 
-    async fn receive_records_packet(&mut self, more_expected: bool) -> Result<Option<Vec<u8>>, String> {
+    async fn receive_records_packet(&mut self, more_expected: bool) -> Result<Option<Vec<u8>>, PortError> {
         match self.packets.pop_front() {
-            None if more_expected => Err("Timed out waiting for the records.".to_owned()),
+            None if more_expected => Err("Timed out waiting for the records.".into()),
             packet => Ok(packet),
         }
     }
 
-    async fn disconnect(&mut self) -> Result<(), String> {
+    async fn disconnect(&mut self) -> Result<(), PortError> {
         Ok(())
     }
 }
@@ -354,13 +354,13 @@ pub struct FakeConnector {
 impl DeviceConnector for FakeConnector {
     type Transport = FakeDevice;
 
-    async fn connect(&self, address: &DeviceAddress) -> Result<FakeDevice, String> {
+    async fn connect(&self, address: &DeviceAddress) -> Result<FakeDevice, PortError> {
         if let Some((clock, time)) = &self.connected_at {
             clock.show(*time);
         }
         match &self.device {
             Some(device) if device.address == address.to_string() => Ok(device.clone()),
-            _ => Err(format!("Device {address} was not found.")),
+            _ => Err(format!("Device {address} was not found.").into()),
         }
     }
 }
